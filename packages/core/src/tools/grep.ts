@@ -435,9 +435,13 @@ class GrepToolInvocation extends BaseToolInvocation<
           });
 
           const results: GrepMatch[] = [];
+          const fileService = this.config.getFileService();
           for await (const line of generator) {
             const match = this.parseGrepLine(line, absolutePath);
             if (match) {
+              if (fileService.shouldIgnoreFile(match.absolutePath)) {
+                continue;
+              }
               if (excludeRegex && excludeRegex.test(match.line)) {
                 continue;
               }
@@ -506,9 +510,13 @@ class GrepToolInvocation extends BaseToolInvocation<
             sandboxManager: this.config.sandboxManager,
           });
 
+          const fileService = this.config.getFileService();
           for await (const line of generator) {
             const match = this.parseGrepLine(line, absolutePath);
             if (match) {
+              if (fileService.shouldIgnoreFile(match.absolutePath)) {
+                continue;
+              }
               if (excludeRegex && excludeRegex.test(match.line)) {
                 continue;
               }
@@ -568,6 +576,13 @@ class GrepToolInvocation extends BaseToolInvocation<
 
         try {
           const content = await fsPromises.readFile(fileAbsolutePath, 'utf8');
+
+          // Re-verify with fileDiscoveryService for maximum safety (though globStream should handle it)
+          const fileService = this.config.getFileService();
+          if (fileService.shouldIgnoreFile(fileAbsolutePath)) {
+            continue;
+          }
+
           const lines = content.split(/\r?\n/);
           let matchesInFile = 0;
           for (let index = 0; index < lines.length; index++) {

@@ -481,6 +481,12 @@ class GrepToolInvocation extends BaseToolInvocation<
       for await (const line of generator) {
         const match = this.parseRipgrepJsonLine(line, parseBasePath);
         if (match) {
+          if (
+            !no_ignore &&
+            this.fileDiscoveryService.shouldIgnoreFile(match.absolutePath)
+          ) {
+            continue;
+          }
           if (excludeRegex && excludeRegex.test(match.line)) {
             continue;
           }

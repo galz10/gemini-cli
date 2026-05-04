@@ -280,4 +280,25 @@ export class FileDiscoveryService {
     }
     return paths.concat(this.getIgnoreFilePaths());
   }
+
+  /**
+   * Returns a combined list of all ignore patterns from all active filters (excluding .gitignore).
+   * .gitignore is typically handled natively by search tools like git grep or ripgrep.
+   */
+  getCombinedPatterns(): string[] {
+    const patterns = new Set<string>();
+
+    if (
+      this.geminiIgnoreFilter &&
+      this.defaultFilterFileOptions.respectGeminiIgnore
+    ) {
+      this.geminiIgnoreFilter.getPatterns().forEach((p) => patterns.add(p));
+    }
+
+    if (this.customIgnoreFilter) {
+      this.customIgnoreFilter.getPatterns().forEach((p) => patterns.add(p));
+    }
+
+    return Array.from(patterns);
+  }
 }

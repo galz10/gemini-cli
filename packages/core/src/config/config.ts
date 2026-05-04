@@ -2882,18 +2882,21 @@ export class Config implements McpContext, AgentLoopContext {
   }
 
   /**
-   * Gets custom file exclusion patterns from configuration.
-   * TODO: This is a placeholder implementation. In the future, this could
-   * read from settings files, CLI arguments, or environment variables.
+   * Gets custom file exclusion patterns from configuration, including .geminiignore patterns.
    */
   getCustomExcludes(): string[] {
-    // Placeholder implementation - returns empty array for now
-    // Future implementation could read from:
-    // - User settings file
-    // - Project-specific configuration
-    // - Environment variables
-    // - CLI arguments
-    return [];
+    const patterns = new Set<string>();
+
+    // Add patterns from settings
+    if (this.fileFiltering.customIgnoreFilePaths) {
+      this.fileFiltering.customIgnoreFilePaths.forEach((p) => patterns.add(p));
+    }
+
+    // Include patterns from FileDiscoveryService (which handles .geminiignore and custom files)
+    const fileService = this.getFileService();
+    fileService.getCombinedPatterns().forEach((p) => patterns.add(p));
+
+    return Array.from(patterns);
   }
 
   getCheckpointingEnabled(): boolean {

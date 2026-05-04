@@ -17,6 +17,7 @@ import { ToolErrorType } from './tool-error.js';
 import * as glob from 'glob';
 import { createMockMessageBus } from '../test-utils/mock-message-bus.js';
 import { execStreaming } from '../utils/shell-utils.js';
+import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
 
 vi.mock('glob', { spy: true });
 vi.mock('../utils/shell-utils.js', () => ({
@@ -60,6 +61,11 @@ describe('GrepTool', () => {
         searchTimeout: 30000,
         customIgnoreFilePaths: [],
       }),
+      getFileService: () =>
+        new FileDiscoveryService(tempRootDir, {
+          respectGitIgnore: true,
+          respectGeminiIgnore: true,
+        }),
       storage: {
         getProjectTempDir: vi.fn().mockReturnValue('/tmp/project'),
       },
@@ -389,6 +395,11 @@ describe('GrepTool', () => {
           searchTimeout: 30000,
           customIgnoreFilePaths: [],
         }),
+        getFileService: () =>
+          new FileDiscoveryService(tempRootDir, {
+            respectGitIgnore: true,
+            respectGeminiIgnore: true,
+          }),
         storage: {
           getProjectTempDir: vi.fn().mockReturnValue('/tmp/project'),
         },
@@ -473,6 +484,11 @@ describe('GrepTool', () => {
           searchTimeout: 30000,
           customIgnoreFilePaths: [],
         }),
+        getFileService: () =>
+          new FileDiscoveryService(tempRootDir, {
+            respectGitIgnore: true,
+            respectGeminiIgnore: true,
+          }),
         storage: {
           getProjectTempDir: vi.fn().mockReturnValue('/tmp/project'),
         },
