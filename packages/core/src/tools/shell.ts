@@ -44,6 +44,7 @@ import {
   normalizeCommand,
   escapeShellArg,
 } from '../utils/shell-utils.js';
+import { SystemProtectionService } from '../services/systemProtectionService.js';
 import { SHELL_TOOL_NAME } from './tool-names.js';
 import { PARAM_ADDITIONAL_PERMISSIONS } from './definitions/base-declarations.js';
 import { ApprovalMode } from '../policy/types.js';
@@ -501,6 +502,23 @@ export class ShellToolInvocation extends BaseToolInvocation<
           },
         };
       }
+
+      // Proactively validate the command for system protection risks (e.g. redirection to /etc/passwd)
+      const shellValidationError = SystemProtectionService.validateShellCommand(
+        strippedCommand,
+        cwd,
+      );
+      if (shellValidationError) {
+        return {
+          llmContent: shellValidationError,
+          returnDisplay: 'Security Error: Command blocked.',
+          error: {
+            message: shellValidationError,
+            type: ToolErrorType.PERMISSION_DENIED,
+          },
+        };
+      }
+
       let cumulativeOutput: string | AnsiOutput = '';
       let lastUpdateTime = Date.now();
       let isBinaryStream = false;
