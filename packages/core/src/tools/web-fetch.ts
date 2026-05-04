@@ -50,6 +50,13 @@ const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 10;
 const hostRequestHistory = new LRUCache<string, number[]>(1000);
 
+/**
+ * Resets the rate limit history. Only for testing purposes.
+ */
+export function resetRateLimitsForTesting(): void {
+  hostRequestHistory.clear();
+}
+
 function checkRateLimit(url: string): {
   allowed: boolean;
   waitTimeMs?: number;
@@ -280,17 +287,43 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     }
   }
 
-  private async executeFallbackForUrl(
-    urlStr: string,
-    signal: AbortSignal,
-  ): Promise<string> {
+  private validateFetchRequest(urlStr: string): string {
     const url = convertGithubUrlToRaw(urlStr);
+
+    let urlObj: URL;
+    try {
+      urlObj = new URL(url);
+    } catch {
+      throw new Error(`Invalid URL: "${url}"`);
+    }
+
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      throw new Error(
+        `Unsupported protocol in URL: "${url}". Only http and https are supported.`,
+      );
+    }
+
     if (this.isBlockedHost(url)) {
-      debugLogger.warn(`[WebFetchTool] Blocked access to host: ${url}`);
       throw new Error(
         `Access to blocked or private host ${url} is not allowed.`,
       );
     }
+
+    const rateLimit = checkRateLimit(url);
+    if (!rateLimit.allowed) {
+      throw new Error(
+        `Rate limit exceeded for host: ${urlObj.hostname}. Please try again in ${Math.round((rateLimit.waitTimeMs || 0) / 1000)} seconds.`,
+      );
+    }
+
+    return url;
+  }
+
+  private async executeFallbackForUrl(
+    urlStr: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    const url = this.validateFetchRequest(urlStr);
 
     const response = await retryWithBackoff(
       async () => {
@@ -600,25 +633,11 @@ ${aggregatedContent}
 
     let url: string;
     try {
-      url = new URL(this.params.url).href;
-    } catch {
-      return {
-        llmContent: `Error: Invalid URL "${this.params.url}"`,
-        returnDisplay: `Error: Invalid URL "${this.params.url}"`,
-        error: {
-          message: `Invalid URL "${this.params.url}"`,
-          type: ToolErrorType.INVALID_TOOL_PARAMS,
-        },
-      };
-    }
-
-    // Convert GitHub blob URL to raw URL
-    url = convertGithubUrlToRaw(url);
-
-    if (this.isBlockedHost(url)) {
-      const errorMessage = `Access to blocked or private host ${url} is not allowed.`;
+      url = this.validateFetchRequest(this.params.url);
+    } catch (e) {
+      const errorMessage = getErrorMessage(e);
       debugLogger.warn(
-        `[WebFetchTool] Blocked experimental fetch to host: ${url}`,
+        `[WebFetchTool] Blocked experimental fetch: ${errorMessage}`,
       );
       return {
         llmContent: `Error: ${errorMessage}`,

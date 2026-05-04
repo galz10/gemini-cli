@@ -10,6 +10,7 @@ import {
   parsePrompt,
   convertGithubUrlToRaw,
   normalizeUrl,
+  resetRateLimitsForTesting,
 } from './web-fetch.js';
 import type { Config } from '../config/config.js';
 import { ApprovalMode } from '../policy/types.js';
@@ -295,6 +296,8 @@ describe('WebFetchTool', () => {
       isInteractive: () => false,
       isContextManagementEnabled: vi.fn().mockReturnValue(false),
     } as unknown as Config;
+
+    resetRateLimitsForTesting();
   });
 
   describe('validateToolParamValues', () => {
@@ -960,11 +963,12 @@ describe('WebFetchTool', () => {
     beforeEach(() => {
       vi.spyOn(mockConfig, 'getDirectWebFetch').mockReturnValue(true);
       vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      resetRateLimitsForTesting();
     });
 
     it('should perform direct fetch and return text for plain text content', async () => {
       const content = 'Plain text content';
-      mockFetch('https://example.com/', {
+      mockFetch('https://example.com', {
         status: 200,
         headers: new Headers({ 'content-type': 'text/plain' }),
         text: () => Promise.resolve(content),
@@ -980,7 +984,7 @@ describe('WebFetchTool', () => {
       expect(result.llmContent).toBe(content);
       expect(result.returnDisplay).toContain('Fetched text/plain content');
       expect(fetchUtils.fetchWithTimeout).toHaveBeenCalledWith(
-        'https://example.com/',
+        'https://example.com',
         expect.any(Number),
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -993,7 +997,7 @@ describe('WebFetchTool', () => {
     it('should use html-to-text and preserve links for HTML content', async () => {
       const content =
         '<html><body><a href="https://link.com">Link</a></body></html>';
-      mockFetch('https://example.com/', {
+      mockFetch('https://example.com', {
         status: 200,
         headers: new Headers({ 'content-type': 'text/html' }),
         text: () => Promise.resolve(content),
@@ -1010,7 +1014,7 @@ describe('WebFetchTool', () => {
           selectors: [
             expect.objectContaining({
               selector: 'a',
-              options: { ignoreHref: false, baseUrl: 'https://example.com/' },
+              options: { ignoreHref: false, baseUrl: 'https://example.com' },
             }),
           ],
         }),
@@ -1131,8 +1135,8 @@ describe('WebFetchTool', () => {
         abortSignal: new AbortController().signal,
       });
 
-      expect(result.llmContent).toContain('Error: Invalid URL "not-a-url"');
-      expect(result.error?.type).toBe(ToolErrorType.INVALID_TOOL_PARAMS);
+      expect(result.llmContent).toContain('Error: Invalid URL: "not-a-url"');
+      expect(result.error?.type).toBe(ToolErrorType.WEB_FETCH_PROCESSING_ERROR);
     });
 
     it('should block private IP (experimental)', async () => {
@@ -1147,7 +1151,7 @@ describe('WebFetchTool', () => {
       });
 
       expect(result.llmContent).toContain(
-        'Error: Access to blocked or private host http://localhost/ is not allowed.',
+        'Error: Access to blocked or private host http://localhost is not allowed.',
       );
       expect(result.error?.type).toBe(ToolErrorType.WEB_FETCH_PROCESSING_ERROR);
     });
