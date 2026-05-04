@@ -328,4 +328,54 @@ describe('KeychainService', () => {
       expect(await service.getPassword('missing')).toBeNull();
     });
   });
+
+  describe('Error Handling and Sanitization', () => {
+    beforeEach(async () => {
+      // Ensure it uses native mock and not fallback
+      vi.mocked(os.platform).mockReturnValue('linux');
+      await service.isAvailable();
+      vi.clearAllMocks();
+    });
+
+    it('should sanitize access denied errors', async () => {
+      mockKeytar.getPassword?.mockRejectedValue(
+        new Error('User access denied to keychain'),
+      );
+      await expect(service.getPassword('acc')).rejects.toThrow(
+        'Access denied to system keychain',
+      );
+    });
+
+    it('should sanitize not found errors', async () => {
+      mockKeytar.deletePassword?.mockRejectedValue(
+        new Error('The credential could not be found'),
+      );
+      await expect(service.deletePassword('acc')).rejects.toThrow(
+        'Credential not found in system keychain',
+      );
+    });
+
+    it('should sanitize generic native failures', async () => {
+      mockKeytar.setPassword?.mockRejectedValue(
+        new Error('Unknown native error 0x80004005'),
+      );
+      await expect(service.setPassword('acc', 'val')).rejects.toThrow(
+        'System keychain operation failed (setPassword)',
+      );
+    });
+
+    it('should log original error to debugLogger only', async () => {
+      const originalError = new Error('Very sensitive system details');
+      mockKeytar.findCredentials?.mockRejectedValue(originalError);
+
+      await expect(service.findCredentials()).rejects.toThrow(
+        'System keychain operation failed (findCredentials)',
+      );
+
+      expect(debugLogger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Native keychain error during findCredentials'),
+        originalError.message,
+      );
+    });
+  });
 });

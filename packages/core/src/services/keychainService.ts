@@ -47,41 +47,85 @@ export class KeychainService {
 
   /**
    * Retrieves a secret for the given account.
-   * @throws Error if the keychain is unavailable.
+   * @throws Error if the keychain is unavailable or operation fails.
    */
   async getPassword(account: string): Promise<string | null> {
     const keychain = await this.getKeychainOrThrow();
-    return keychain.getPassword(this.serviceName, account);
+    try {
+      return await keychain.getPassword(this.serviceName, account);
+    } catch (error) {
+      throw this.sanitizeError(error, 'getPassword');
+    }
   }
 
   /**
    * Securely stores a secret.
-   * @throws Error if the keychain is unavailable.
+   * @throws Error if the keychain is unavailable or operation fails.
    */
   async setPassword(account: string, value: string): Promise<void> {
     const keychain = await this.getKeychainOrThrow();
-    await keychain.setPassword(this.serviceName, account, value);
+    try {
+      await keychain.setPassword(this.serviceName, account, value);
+    } catch (error) {
+      throw this.sanitizeError(error, 'setPassword');
+    }
   }
 
   /**
    * Removes a secret from the keychain.
    * @returns true if the secret was deleted, false otherwise.
-   * @throws Error if the keychain is unavailable.
+   * @throws Error if the keychain is unavailable or operation fails.
    */
   async deletePassword(account: string): Promise<boolean> {
     const keychain = await this.getKeychainOrThrow();
-    return keychain.deletePassword(this.serviceName, account);
+    try {
+      return await keychain.deletePassword(this.serviceName, account);
+    } catch (error) {
+      throw this.sanitizeError(error, 'deletePassword');
+    }
   }
 
   /**
    * Lists all account/secret pairs stored under this service.
-   * @throws Error if the keychain is unavailable.
+   * @throws Error if the keychain is unavailable or operation fails.
    */
   async findCredentials(): Promise<
     Array<{ account: string; password: string }>
   > {
     const keychain = await this.getKeychainOrThrow();
-    return keychain.findCredentials(this.serviceName);
+    try {
+      return await keychain.findCredentials(this.serviceName);
+    } catch (error) {
+      throw this.sanitizeError(error, 'findCredentials');
+    }
+  }
+
+  private sanitizeError(error: unknown, operation: string): Error {
+    const originalMessage =
+      error instanceof Error ? error.message : String(error);
+    debugLogger.debug(
+      `Native keychain error during ${operation}:`,
+      originalMessage,
+    );
+
+    // Generic error messages that don't leak PII or system details
+    const lowerMessage = originalMessage.toLowerCase();
+    if (
+      lowerMessage.includes('access denied') ||
+      lowerMessage.includes('user interaction is not allowed') ||
+      lowerMessage.includes('permission')
+    ) {
+      return new Error('Access denied to system keychain');
+    }
+
+    if (
+      lowerMessage.includes('not found') ||
+      lowerMessage.includes('could not be found')
+    ) {
+      return new Error('Credential not found in system keychain');
+    }
+
+    return new Error(`System keychain operation failed (${operation})`);
   }
 
   private async getKeychainOrThrow(): Promise<Keychain> {
