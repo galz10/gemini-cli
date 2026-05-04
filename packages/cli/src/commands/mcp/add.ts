@@ -24,6 +24,11 @@ async function addMcpServer(
     description?: string;
     includeTools?: string[];
     excludeTools?: string[];
+    oauthClientId?: string;
+    oauthClientSecret?: string;
+    oauthAuthUrl?: string;
+    oauthTokenUrl?: string;
+    oauthScopes?: string[];
   },
 ) {
   const {
@@ -36,6 +41,11 @@ async function addMcpServer(
     description,
     includeTools,
     excludeTools,
+    oauthClientId,
+    oauthClientSecret,
+    oauthAuthUrl,
+    oauthTokenUrl,
+    oauthScopes,
   } = options;
 
   const settings = loadSettings(process.cwd());
@@ -65,6 +75,17 @@ async function addMcpServer(
     {} as Record<string, string>,
   );
 
+  const oauth =
+    oauthClientId || oauthAuthUrl || oauthTokenUrl
+      ? {
+          clientId: oauthClientId,
+          clientSecret: oauthClientSecret,
+          authorizationUrl: oauthAuthUrl,
+          tokenUrl: oauthTokenUrl,
+          scopes: oauthScopes,
+        }
+      : undefined;
+
   switch (transport) {
     case 'sse':
       newServer = {
@@ -76,6 +97,7 @@ async function addMcpServer(
         description,
         includeTools,
         excludeTools,
+        oauth,
       };
       break;
     case 'http':
@@ -88,6 +110,7 @@ async function addMcpServer(
         description,
         includeTools,
         excludeTools,
+        oauth,
       };
       break;
     case 'stdio':
@@ -110,6 +133,7 @@ async function addMcpServer(
         description,
         includeTools,
         excludeTools,
+        oauth,
       };
       break;
   }
@@ -209,6 +233,28 @@ export const addCommand: CommandModule = {
         type: 'array',
         string: true,
       })
+      .option('oauth-client-id', {
+        describe: 'OAuth Client ID for the server',
+        type: 'string',
+      })
+      .option('oauth-client-secret', {
+        describe: 'OAuth Client Secret for the server',
+        type: 'string',
+      })
+      .option('oauth-auth-url', {
+        describe: 'OAuth Authorization URL for the server',
+        type: 'string',
+      })
+      .option('oauth-token-url', {
+        describe: 'OAuth Token URL for the server',
+        type: 'string',
+      })
+      .option('oauth-scope', {
+        describe:
+          'OAuth Scopes for the server (can be provided multiple times)',
+        type: 'array',
+        string: true,
+      })
       .middleware((argv) => {
         // Handle -- separator args as server args if present
         if (argv['--']) {
@@ -245,6 +291,16 @@ export const addCommand: CommandModule = {
         includeTools: argv['includeTools'] as string[] | undefined,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
         excludeTools: argv['excludeTools'] as string[] | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        oauthClientId: argv['oauthClientId'] as string | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        oauthClientSecret: argv['oauthClientSecret'] as string | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        oauthAuthUrl: argv['oauthAuthUrl'] as string | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        oauthTokenUrl: argv['oauthTokenUrl'] as string | undefined,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+        oauthScopes: argv['oauthScope'] as string[] | undefined,
       },
     );
     await exitCli();

@@ -168,6 +168,14 @@ export class OAuthUtils {
 
     const endpointsToTry: string[] = [];
 
+    // Clerk-specific discovery: Clerk often uses a different issuer for its frontend/API
+    if (authServerUrlObj.hostname.includes('clerk.')) {
+      // clerk.com/v1/... -> clerk.com/.well-known/openid-configuration
+      endpointsToTry.push(
+        new URL('/.well-known/openid-configuration', base).toString(),
+      );
+    }
+
     // With issuer URLs with path components, try the following well-known
     // endpoints in order:
     if (authServerUrlObj.pathname !== '/') {
@@ -191,6 +199,14 @@ export class OAuthUtils {
       endpointsToTry.push(
         new URL(
           `${authServerUrlObj.pathname}/.well-known/openid-configuration`,
+          base,
+        ).toString(),
+      );
+
+      // 4. Clerk/Common OIDC path
+      endpointsToTry.push(
+        new URL(
+          `${authServerUrlObj.pathname.split('/')[1]}/.well-known/openid-configuration`,
           base,
         ).toString(),
       );
