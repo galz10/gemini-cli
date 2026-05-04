@@ -179,4 +179,23 @@ describe('isHeadlessMode', () => {
     });
     expect(isHeadlessMode({ prompt: true })).toBe(true);
   });
+
+  it('should return true in a Linux headless environment', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'linux',
+      configurable: true,
+    });
+    vi.stubEnv('DISPLAY', '');
+    vi.stubEnv('WAYLAND_DISPLAY', '');
+
+    try {
+      expect(isHeadlessMode()).toBe(true);
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        value: originalPlatform,
+        configurable: true,
+      });
+    }
+  });
 });

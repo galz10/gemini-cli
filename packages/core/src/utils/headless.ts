@@ -44,6 +44,15 @@ export function isHeadlessMode(options?: HeadlessModeOptions): boolean {
     return true;
   }
 
+  // Detect Linux headless environment
+  if (
+    process.platform === 'linux' &&
+    !process.env['DISPLAY'] &&
+    !process.env['WAYLAND_DISPLAY']
+  ) {
+    return true;
+  }
+
   // Fallback: check process.argv for flags that imply headless mode.
   return process.argv.some((arg) => arg === '-p' || arg === '--prompt');
 }
