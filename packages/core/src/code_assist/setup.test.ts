@@ -338,6 +338,55 @@ describe('setupUser', () => {
       expect(mockGetOperation).toHaveBeenCalledWith(operationName);
       expect(userData.projectId).toBe('server-project');
     });
+
+    it('should throw timeout error when polling exceeds max retries', async () => {
+      mockLoad.mockResolvedValue({
+        allowedTiers: [mockPaidTier],
+      });
+      const operationName = 'operations/123';
+      mockOnboardUser.mockResolvedValue({
+        name: operationName,
+        done: false,
+      });
+      mockGetOperation.mockResolvedValue({
+        name: operationName,
+        done: false,
+      });
+
+      const setupPromise = setupUser({} as OAuth2Client, mockConfig);
+
+      // Advance timers to trigger all retries
+      for (let i = 0; i < 60; i++) {
+        await vi.advanceTimersByTimeAsync(5000);
+      }
+
+      await expect(setupPromise).rejects.toThrow(
+        'Authentication session timed out. Please try running `gemini login` again.',
+      );
+    });
+
+    it('should throw helpful error when polling returns 404', async () => {
+      mockLoad.mockResolvedValue({
+        allowedTiers: [mockPaidTier],
+      });
+      const operationName = 'operations/123';
+      mockOnboardUser.mockResolvedValue({
+        name: operationName,
+        done: false,
+      });
+
+      const error404 = new Error('Not Found') as Error & { status: number };
+      error404.status = 404;
+      mockGetOperation.mockRejectedValue(error404);
+
+      const setupPromise = setupUser({} as OAuth2Client, mockConfig);
+
+      await vi.advanceTimersByTimeAsync(5000);
+
+      await expect(setupPromise).rejects.toThrow(
+        'Authentication session expired or was not found. Please try running `gemini login` again.',
+      );
+    });
   });
 
   describe('validation and errors', () => {

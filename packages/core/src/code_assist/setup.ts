@@ -259,9 +259,46 @@ async function _doSetupUser(
   let lroRes = await caServer.onboardUser(onboardReq);
   if (!lroRes.done && lroRes.name) {
     const operationName = lroRes.name;
+    const maxRetries = 60; // 5 minutes with 5s interval
+    let retries = 0;
+
     while (!lroRes.done) {
+      if (retries >= maxRetries) {
+        throw new Error(
+          'Authentication session timed out. Please try running `gemini login` again.',
+        );
+      }
+
       await new Promise((f) => setTimeout(f, 5000));
-      lroRes = await caServer.getOperation(operationName);
+
+      try {
+        lroRes = await caServer.getOperation(operationName);
+      } catch (error: unknown) {
+        debugLogger.error('Error polling onboarding operation:', error);
+        // If the operation is not found (404) or there's a permanent error,
+        // we should stop polling and inform the user.
+        const isNotFound =
+          error instanceof Error &&
+          (error.message.includes('404') ||
+            error.message.toLowerCase().includes('not found') ||
+            ('status' in error && error.status === 404) ||
+            ('response' in error &&
+              typeof error.response === 'object' &&
+              error.response !== null &&
+              'status' in error.response &&
+              error.response.status === 404));
+
+        if (isNotFound) {
+          throw new Error(
+            'Authentication session expired or was not found. Please try running `gemini login` again.',
+          );
+        }
+
+        // For other errors (network, etc.), we can retry a few times
+        retries++;
+        continue;
+      }
+      retries++;
     }
   }
 
