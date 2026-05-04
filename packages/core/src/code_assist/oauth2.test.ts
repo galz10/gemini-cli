@@ -385,6 +385,24 @@ describe('oauth2', () => {
       };
       (readline.createInterface as Mock).mockReturnValue(mockReadline);
 
+      // Mock process.stdin methods for the "Press any key" pause
+      const stdin = process.stdin as unknown as NodeJS.ReadStream;
+      const originalSetRawMode = stdin.setRawMode;
+      stdin.setRawMode = vi.fn().mockReturnValue(stdin);
+      const setRawModeSpy = vi.mocked(stdin.setRawMode);
+
+      const resumeSpy = vi.spyOn(stdin, 'resume').mockReturnValue(stdin);
+      const onceSpy = vi
+        .spyOn(stdin, 'once')
+        .mockImplementation(
+          (event: string | symbol, callback: (...args: unknown[]) => void) => {
+            if ((event as string) === 'data') {
+              (callback as (data: Buffer) => void)(Buffer.from('\n'));
+            }
+            return stdin as unknown as NodeJS.ReadStream;
+          },
+        );
+
       const client = await getOauthClient(
         AuthType.LOGIN_WITH_GOOGLE,
         mockConfigWithNoBrowser,
@@ -408,6 +426,16 @@ describe('oauth2', () => {
         redirect_uri: 'https://codeassist.google.com/authcode',
       });
       expect(mockOAuth2Client.setCredentials).toHaveBeenCalledWith(mockTokens);
+
+      // Verify the "Press any key" interaction
+      expect(setRawModeSpy).toHaveBeenCalledWith(true);
+      expect(resumeSpy).toHaveBeenCalled();
+      expect(onceSpy).toHaveBeenCalledWith('data', expect.any(Function));
+      expect(setRawModeSpy).toHaveBeenCalledWith(false);
+
+      stdin.setRawMode = originalSetRawMode;
+      resumeSpy.mockRestore();
+      onceSpy.mockRestore();
     });
 
     it('should cache Google Account when logging in with user code', async () => {
@@ -460,6 +488,23 @@ describe('oauth2', () => {
       };
       (readline.createInterface as Mock).mockReturnValue(mockReadline);
 
+      // Mock process.stdin methods for the "Press any key" pause
+      const stdin = process.stdin as unknown as NodeJS.ReadStream;
+      const originalSetRawMode = stdin.setRawMode;
+      stdin.setRawMode = vi.fn().mockReturnValue(stdin);
+
+      const resumeSpy = vi.spyOn(stdin, 'resume').mockReturnValue(stdin);
+      const onceSpy = vi
+        .spyOn(stdin, 'once')
+        .mockImplementation(
+          (event: string | symbol, callback: (...args: unknown[]) => void) => {
+            if ((event as string) === 'data') {
+              (callback as (data: Buffer) => void)(Buffer.from('\n'));
+            }
+            return stdin as unknown as NodeJS.ReadStream;
+          },
+        );
+
       // Mock User Info API
       vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
@@ -486,6 +531,10 @@ describe('oauth2', () => {
           old: [],
         });
       }
+
+      stdin.setRawMode = originalSetRawMode;
+      resumeSpy.mockRestore();
+      onceSpy.mockRestore();
     });
 
     describe('in Cloud Shell', () => {

@@ -156,14 +156,21 @@ async function initOauthClient(
     return client;
   }
 
-  client.on('tokens', async (tokens: Credentials) => {
-    if (useEncryptedStorage) {
-      await OAuthCredentialStorage.saveCredentials(tokens);
-    } else {
-      await cacheCredentials(tokens);
-    }
-
-    await triggerPostAuthCallbacks(tokens);
+  client.on('tokens', (tokens: Credentials) => {
+    // Fire and forget the background save, but we will ALSO manually call it
+    // during the interactive flow to ensure it's awaited.
+    void (async () => {
+      try {
+        if (useEncryptedStorage) {
+          await OAuthCredentialStorage.saveCredentials(tokens);
+        } else {
+          await cacheCredentials(tokens);
+        }
+        await triggerPostAuthCallbacks(tokens);
+      } catch (error) {
+        debugLogger.error('Failed to save tokens in background:', error);
+      }
+    })();
   });
 
   if (credentials) {
@@ -472,6 +479,15 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
         redirect_uri: redirectUri,
       });
       client.setCredentials(tokens);
+
+      // Manually await token persistence to ensure it's saved before returning
+      const useEncryptedStorage = getUseEncryptedStorageFlag();
+      if (useEncryptedStorage) {
+        await OAuthCredentialStorage.saveCredentials(tokens);
+      } else {
+        await cacheCredentials(tokens);
+      }
+      await triggerPostAuthCallbacks(tokens);
     } catch (error) {
       writeToStderr(
         'Failed to authenticate with authorization code:' +
@@ -485,6 +501,24 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
       );
       return false;
     }
+
+    // Add a mandatory pause to avoid race conditions with UI re-initialization
+    // and terminal state changes in headless environments.
+    writeToStdout('\nAuthentication successful! Press any key to continue...');
+    await new Promise<void>((resolve) => {
+      const rl = readline.createInterface({
+        input: process.stdin,
+        terminal: true,
+      });
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.once('data', () => {
+        process.stdin.setRawMode(false);
+        rl.close();
+        resolve();
+      });
+    });
+
     return true;
   } catch (err) {
     if (err instanceof FatalCancellationError) {
