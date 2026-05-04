@@ -121,6 +121,22 @@ export function startCallbackServer(
   const responsePromise = new Promise<OAuthAuthorizationResponse>(
     (resolve, reject) => {
       let serverPort: number;
+      let isClosing = false;
+
+      const closeServer = () => {
+        if (isClosing) {
+          return;
+        }
+        isClosing = true;
+
+        if (
+          'closeAllConnections' in server &&
+          typeof server.closeAllConnections === 'function'
+        ) {
+          server.closeAllConnections();
+        }
+        server.close();
+      };
 
       const server = http.createServer(
         async (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -149,7 +165,7 @@ export function startCallbackServer(
                 </body>
               </html>
             `);
-              server.close();
+              closeServer();
               reject(new Error(`OAuth error: ${error}`));
               return;
             }
@@ -163,7 +179,7 @@ export function startCallbackServer(
             if (state !== expectedState) {
               res.writeHead(400);
               res.end('Invalid state parameter');
-              server.close();
+              closeServer();
               reject(new Error('State mismatch - possible CSRF attack'));
               return;
             }
@@ -180,10 +196,10 @@ export function startCallbackServer(
             </html>
           `);
 
-            server.close();
+            closeServer();
             resolve({ code, state });
           } catch (error) {
-            server.close();
+            closeServer();
             reject(error);
           }
         },
@@ -233,7 +249,7 @@ export function startCallbackServer(
       timeoutId.unref();
 
       const onAbort = () => {
-        server.close();
+        closeServer();
         reject(abortController.signal.reason);
       };
       abortController.signal.addEventListener('abort', onAbort, { once: true });
