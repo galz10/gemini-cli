@@ -62,7 +62,9 @@ export class ServiceAccountImpersonationProvider implements McpAuthProvider {
     }
     this.targetServiceAccount = config.targetServiceAccount;
 
-    this.auth = new GoogleAuth();
+    this.auth = new GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+    });
   }
 
   clientInformation(): OAuthClientInformation | undefined {
@@ -111,11 +113,16 @@ export class ServiceAccountImpersonationProvider implements McpAuthProvider {
         return undefined;
       }
     } catch (e) {
+      const errorMessage =
+        e && typeof e === 'object' && 'response' in e && !!e.response
+          ? (e.response as { data?: { error?: { message?: string } } }).data
+              ?.error?.message || String(e)
+          : String(e);
+
       coreEvents.emitFeedback(
         'error',
-        'Failed to obtain authentication token.',
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        e as Error,
+        `Failed to obtain impersonated authentication token: ${errorMessage}\n\n` +
+          'Ensure the impersonating account has the "Service Account Token Creator" role on the target service account.',
       );
       return undefined;
     }
