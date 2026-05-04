@@ -17,6 +17,8 @@ export interface PrivacyState {
   isLoading: boolean;
   error?: string;
   isFreeTier?: boolean;
+  isEnterprise?: boolean;
+  projectId?: string;
   dataCollectionOptIn?: boolean;
 }
 
@@ -42,6 +44,8 @@ export const usePrivacySettings = (config: Config) => {
           setPrivacyState({
             isLoading: false,
             isFreeTier: false,
+            isEnterprise: true,
+            projectId: server.projectId,
           });
           return;
         }
@@ -50,6 +54,8 @@ export const usePrivacySettings = (config: Config) => {
         setPrivacyState({
           isLoading: false,
           isFreeTier: true,
+          isEnterprise: false,
+          projectId: server.projectId,
           dataCollectionOptIn: optIn,
         });
       } catch (e) {

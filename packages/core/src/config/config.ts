@@ -588,6 +588,7 @@ export interface WorktreeSettings {
 
 export interface ConfigParameters {
   sessionId: string;
+  project?: string;
   clientName?: string;
   clientVersion?: string;
   embeddingModel?: string;
@@ -758,7 +759,8 @@ export class Config implements McpContext, AgentLoopContext {
   private skillManager!: SkillManager;
   private _sessionId: string;
   private readonly clientName: string | undefined;
-  private clientVersion: string;
+  private readonly clientVersion: string;
+  private readonly project: string | undefined;
   private fileSystemService: FileSystemService;
   private trackerService?: TrackerService;
   readonly topicState = new TopicState();
@@ -977,6 +979,7 @@ export class Config implements McpContext, AgentLoopContext {
 
   constructor(params: ConfigParameters) {
     this._sessionId = params.sessionId;
+    this.project = params.project;
     this.clientName = params.clientName;
     this.clientVersion = params.clientVersion ?? 'unknown';
     this.approvedPlanPath = undefined;
@@ -1785,6 +1788,10 @@ export class Config implements McpContext, AgentLoopContext {
 
   getSessionId(): string {
     return this.promptId;
+  }
+
+  getProject(): string | undefined {
+    return this.project;
   }
 
   getWorktreeSettings(): WorktreeSettings | undefined {

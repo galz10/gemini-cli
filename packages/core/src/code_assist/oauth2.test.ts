@@ -111,6 +111,7 @@ const mockConfig = {
   isBrowserLaunchSuppressed: () => false,
   getAcpMode: () => false,
   isInteractive: () => true,
+  getProject: () => undefined,
 } as unknown as Config;
 
 // Mock fetch globally
@@ -326,6 +327,7 @@ describe('oauth2', () => {
         getProxy: () => 'http://test.proxy.com:8080',
         isBrowserLaunchSuppressed: () => true,
         isInteractive: () => false,
+        getProject: () => undefined,
       } as unknown as Config;
 
       await expect(
@@ -345,8 +347,8 @@ describe('oauth2', () => {
         getProxy: () => 'http://test.proxy.com:8080',
         isBrowserLaunchSuppressed: () => true,
         isInteractive: () => true,
+        getProject: () => undefined,
       } as unknown as Config;
-
       const mockCodeVerifier = {
         codeChallenge: 'test-challenge',
         codeVerifier: 'test-verifier',
@@ -416,8 +418,8 @@ describe('oauth2', () => {
         getProxy: () => 'http://test.proxy.com:8080',
         isBrowserLaunchSuppressed: () => true,
         isInteractive: () => true,
+        getProject: () => undefined,
       } as unknown as Config;
-
       const mockCodeVerifier = {
         codeChallenge: 'test-challenge',
         codeVerifier: 'test-verifier',
@@ -1277,6 +1279,7 @@ describe('oauth2', () => {
           getProxy: () => 'http://test.proxy.com:8080',
           isBrowserLaunchSuppressed: () => true,
           isInteractive: () => true,
+          getProject: () => undefined,
         } as unknown as Config;
 
         const mockOAuth2Client = {

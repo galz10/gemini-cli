@@ -68,6 +68,18 @@ async function triggerPostAuthCallbacks(tokens: Credentials) {
 
 const userAccountManager = new UserAccountManager();
 
+function isEnterpriseDomain(email: string | null): boolean {
+  if (!email) {
+    return false;
+  }
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (!domain) {
+    return false;
+  }
+  const consumerDomains = ['gmail.com', 'googlemail.com'];
+  return !consumerDomains.includes(domain);
+}
+
 //  OAuth Client ID used to initiate OAuth2Client class.
 const OAUTH_CLIENT_ID =
   '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com';
@@ -186,6 +198,14 @@ async function initOauthClient(
             );
           }
         }
+
+        const email = userAccountManager.getCachedGoogleAccount();
+        if (isEnterpriseDomain(email) && !config.getProject()) {
+          throw new FatalAuthenticationError(
+            `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.`,
+          );
+        }
+
         debugLogger.log('Loaded cached credentials.');
         await triggerPostAuthCallbacks(credentials as Credentials);
 
@@ -246,7 +266,7 @@ async function initOauthClient(
 
     try {
       for (let i = 0; !success && i < maxRetries; i++) {
-        success = await authWithUserCode(client);
+        success = await authWithUserCode(client, config);
         if (!success) {
           writeToStderr(
             '\nFailed to authenticate with user code.' +
@@ -279,6 +299,13 @@ async function initOauthClient(
       );
     }
 
+    const email = userAccountManager.getCachedGoogleAccount();
+    if (isEnterpriseDomain(email) && !config.getProject()) {
+      throw new FatalAuthenticationError(
+        `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.`,
+      );
+    }
+
     await triggerPostAuthCallbacks(client.credentials);
   } else {
     // In ACP mode, we skip the interactive consent and directly open the browser
@@ -289,7 +316,7 @@ async function initOauthClient(
       }
     }
 
-    const webLogin = await authWithWeb(client);
+    const webLogin = await authWithWeb(client, config);
 
     coreEvents.emit(CoreEvent.UserFeedback, {
       severity: 'info',
@@ -391,6 +418,13 @@ async function initOauthClient(
       message: 'Authentication succeeded\n',
     });
 
+    const email = userAccountManager.getCachedGoogleAccount();
+    if (isEnterpriseDomain(email) && !config.getProject()) {
+      throw new FatalAuthenticationError(
+        `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.`,
+      );
+    }
+
     await triggerPostAuthCallbacks(client.credentials);
   }
 
@@ -407,7 +441,10 @@ export async function getOauthClient(
   return oauthClientPromises.get(authType)!;
 }
 
-async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
+async function authWithUserCode(
+  client: OAuth2Client,
+  config: Config,
+): Promise<boolean> {
   try {
     const redirectUri = 'https://codeassist.google.com/authcode';
     const codeVerifier = await client.generateCodeVerifierAsync();
@@ -419,6 +456,8 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
       code_challenge_method: CodeChallengeMethod.S256,
       code_challenge: codeVerifier.codeChallenge,
       state,
+       
+      project: config.getProject(),
     });
     writeToStdout(
       'Please visit the following URL to authorize the application:\n\n' +
@@ -501,7 +540,10 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
   }
 }
 
-async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
+async function authWithWeb(
+  client: OAuth2Client,
+  config: Config,
+): Promise<OauthWebLogin> {
   const port = await getAvailablePort();
   // The hostname used for the HTTP server binding (e.g., '0.0.0.0' in Docker).
   const host = process.env['OAUTH_CALLBACK_HOST'] || '127.0.0.1';
@@ -516,6 +558,8 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
     access_type: 'offline',
     scope: OAUTH_SCOPE,
     state,
+     
+    project: config.getProject(),
   });
 
   const loginCompletePromise = new Promise<void>((resolve, reject) => {

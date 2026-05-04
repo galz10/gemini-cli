@@ -57,7 +57,15 @@ export const CloudFreePrivacyNotice = ({
     return (
       <Box flexDirection="column" marginY={1}>
         <Text bold color={theme.text.accent}>
-          Gemini Code Assist Privacy Notice
+          Gemini Code Assist Enterprise Privacy Notice
+        </Text>
+        <Newline />
+        <Text>
+          Your session is currently governed by Enterprise-tier Workspace
+          policies linked to project:{' '}
+          <Text bold color={theme.text.accent}>
+            {privacyState.projectId}
+          </Text>
         </Text>
         <Newline />
         <Text>

@@ -84,6 +84,7 @@ export interface CliArgs {
   debug: boolean | undefined;
   prompt: string | undefined;
   promptInteractive: string | undefined;
+  project?: string;
   worktree?: string;
 
   yolo: boolean | undefined;
@@ -298,6 +299,13 @@ export async function parseArguments(
           nargs: 1,
           description:
             'Execute the provided prompt and continue in interactive mode',
+        })
+        .option('project', {
+          alias: 'g',
+          type: 'string',
+          nargs: 1,
+          description:
+            'GCP project ID for Enterprise (Workspace) authentication. Mandatory for Enterprise users.',
         })
         .option('skip-trust', {
           type: 'boolean',
@@ -973,6 +981,10 @@ export async function loadCliConfig(
     acpMode: isAcpMode,
     clientName,
     sessionId,
+    project:
+      argv.project ||
+      process.env['GOOGLE_CLOUD_PROJECT'] ||
+      process.env['GOOGLE_CLOUD_PROJECT_ID'],
     clientVersion: await getVersion(),
     embeddingModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
     sandbox: sandboxConfig,

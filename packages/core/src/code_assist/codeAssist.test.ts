@@ -38,6 +38,7 @@ describe('codeAssist', () => {
     const mockValidationHandler = vi.fn();
     const mockConfig = {
       getValidationHandler: () => mockValidationHandler,
+      getProject: () => undefined,
     } as unknown as Config;
     const mockAuthClient = { a: 'client' };
     const mockUserData = {
@@ -128,6 +129,7 @@ describe('codeAssist', () => {
       const mockServer = new MockedCodeAssistServer({} as never, '', {});
       const mockConfig = {
         getContentGenerator: () => mockServer,
+        getProject: () => undefined,
       } as unknown as Config;
 
       const server = getCodeAssistServer(mockConfig);
@@ -144,6 +146,7 @@ describe('codeAssist', () => {
 
       const mockConfig = {
         getContentGenerator: () => mockLogger,
+        getProject: () => undefined,
       } as unknown as Config;
 
       const server = getCodeAssistServer(mockConfig);
@@ -155,6 +158,7 @@ describe('codeAssist', () => {
       const mockGenerator = { a: 'generator' }; // Not a CodeAssistServer
       const mockConfig = {
         getContentGenerator: () => mockGenerator,
+        getProject: () => undefined,
       } as unknown as Config;
 
       const server = getCodeAssistServer(mockConfig);
@@ -173,6 +177,7 @@ describe('codeAssist', () => {
 
       const mockConfig = {
         getContentGenerator: () => mockLogger,
+        getProject: () => undefined,
       } as unknown as Config;
 
       const server = getCodeAssistServer(mockConfig);
