@@ -18,7 +18,44 @@ import {
   makeRelative,
   deduplicateAbsolutePaths,
   toPathKey,
+  normalizeDriveLetter,
 } from './paths.js';
+
+describe('normalizeDriveLetter', () => {
+  it('should uppercase drive letter on Windows', () => {
+    // Mock process.platform
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'win32',
+      configurable: true,
+    });
+
+    expect(normalizeDriveLetter('c:\\foo')).toBe('C:\\foo');
+    expect(normalizeDriveLetter('D:\\bar')).toBe('D:\\bar');
+    expect(normalizeDriveLetter('z:/baz')).toBe('Z:/baz');
+
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+    });
+  });
+
+  it('should not change paths on non-Windows', () => {
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'linux',
+      configurable: true,
+    });
+
+    expect(normalizeDriveLetter('c:\\foo')).toBe('c:\\foo');
+    expect(normalizeDriveLetter('/etc/passwd')).toBe('/etc/passwd');
+
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+    });
+  });
+});
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof fs>();

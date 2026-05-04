@@ -320,6 +320,17 @@ export function getProjectHash(projectRoot: string): string {
 }
 
 /**
+ * Standardizes the casing of a Windows drive letter to uppercase.
+ * Example: c:\foo -> C:\foo
+ */
+export function normalizeDriveLetter(p: string): string {
+  if (process.platform === 'win32' && /^[a-zA-Z]:/.test(p)) {
+    return p[0].toUpperCase() + p.slice(1);
+  }
+  return p;
+}
+
+/**
  * Normalizes a path for reliable comparison across platforms.
  * - Resolves to an absolute path.
  * - Converts all path separators to forward slashes.
@@ -331,7 +342,8 @@ export function normalizePath(p: string): string {
   const pathModule = isWindows ? path.win32 : path;
 
   const resolved = pathModule.resolve(p);
-  const normalized = resolved.replace(/\\/g, '/');
+  const withNormalizedDrive = normalizeDriveLetter(resolved);
+  const normalized = withNormalizedDrive.replace(/\\/g, '/');
   const isCaseInsensitive = isWindows || platform === 'darwin';
   return isCaseInsensitive ? normalized.toLowerCase() : normalized;
 }
@@ -350,8 +362,8 @@ export function isSubpath(parentPath: string, childPath: string): boolean {
 
   // Resolve both paths to absolute to ensure consistent comparison,
   // especially when mixing relative and absolute paths or when casing differs.
-  let p = pathModule.resolve(parentPath);
-  let c = pathModule.resolve(childPath);
+  let p = normalizeDriveLetter(pathModule.resolve(parentPath));
+  let c = normalizeDriveLetter(pathModule.resolve(childPath));
 
   // On Windows, path.relative is case-insensitive.
   // On POSIX (including Darwin), path.relative is case-sensitive.
@@ -409,7 +421,7 @@ export function resolveToRealPath(pathStr: string): string {
     // Ignore error (e.g. malformed URI), keep path from previous step
   }
 
-  return robustRealpath(path.resolve(resolvedPath));
+  return robustRealpath(normalizeDriveLetter(path.resolve(resolvedPath)));
 }
 
 function robustRealpath(p: string, visited = new Set<string>()): string {
@@ -419,7 +431,7 @@ function robustRealpath(p: string, visited = new Set<string>()): string {
   }
   visited.add(key);
   try {
-    return fs.realpathSync(p);
+    return normalizeDriveLetter(fs.realpathSync(p));
   } catch (e: unknown) {
     if (
       e &&
@@ -432,7 +444,7 @@ function robustRealpath(p: string, visited = new Set<string>()): string {
         if (stat.isSymbolicLink()) {
           const target = fs.readlinkSync(p);
           const resolvedTarget = path.resolve(path.dirname(p), target);
-          return robustRealpath(resolvedTarget, visited);
+          return robustRealpath(normalizeDriveLetter(resolvedTarget), visited);
         }
       } catch (lstatError: unknown) {
         // Not a symlink, or lstat failed. Re-throw if it's not an expected
@@ -450,7 +462,10 @@ function robustRealpath(p: string, visited = new Set<string>()): string {
       }
       const parent = path.dirname(p);
       if (parent === p) return p;
-      return path.join(robustRealpath(parent, visited), path.basename(p));
+      return path.join(
+        robustRealpath(normalizeDriveLetter(parent), visited),
+        path.basename(p),
+      );
     }
     throw e;
   }
@@ -482,7 +497,7 @@ export function deduplicateAbsolutePaths(paths?: string[] | null): string[] {
  */
 export function toPathKey(p: string): string {
   // Normalize path segments
-  let norm = path.normalize(p);
+  let norm = normalizeDriveLetter(path.normalize(p));
 
   // Strip trailing slashes (except for root paths)
   if (norm.length > 1 && (norm.endsWith('/') || norm.endsWith('\\'))) {
