@@ -190,6 +190,46 @@ async function _doSetupUser(
     }
   }
 
+  // Prioritize Enterprise tier if projectId is provided and an eligible tier is found in allowedTiers.
+  if (projectId && loadRes.allowedTiers) {
+    const enterpriseTier = loadRes.allowedTiers.find(
+      (t) =>
+        t.id !== UserTierId.FREE &&
+        (t.userDefinedCloudaicompanionProject ||
+          t.id?.includes('standard') ||
+          t.id?.includes('premium')),
+    );
+
+    if (
+      enterpriseTier &&
+      loadRes.currentTier &&
+      enterpriseTier.id !== loadRes.currentTier.id
+    ) {
+      debugLogger.log(
+        `Switching to Enterprise tier (${enterpriseTier.name}) based on project ID: ${projectId}`,
+      );
+      loadRes.currentTier = enterpriseTier;
+      // If we switched to a paid tier, update paidTier as well
+      loadRes.paidTier = enterpriseTier;
+    }
+  }
+
+  // If multiple eligible tiers are found, and we have a handler, ask the user to choose.
+  const tierSelectionHandler = config.getTierSelectionHandler();
+  if (
+    loadRes.allowedTiers &&
+    loadRes.allowedTiers.length > 1 &&
+    tierSelectionHandler
+  ) {
+    const selectedTier = await tierSelectionHandler(loadRes.allowedTiers);
+    if (selectedTier) {
+      debugLogger.log(`User selected tier: ${selectedTier.name}`);
+      loadRes.currentTier = selectedTier;
+      // If we switched to a paid tier, update paidTier as well
+      loadRes.paidTier = selectedTier;
+    }
+  }
+
   if (loadRes.currentTier) {
     if (!loadRes.paidTier?.id && !loadRes.currentTier.id) {
       debugLogger.warn(

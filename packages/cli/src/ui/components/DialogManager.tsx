@@ -19,6 +19,7 @@ import { EditorSettingsDialog } from './EditorSettingsDialog.js';
 import { PrivacyNotice } from '../privacy/PrivacyNotice.js';
 import { ProQuotaDialog } from './ProQuotaDialog.js';
 import { ValidationDialog } from './ValidationDialog.js';
+import { TierSelectionDialog } from './TierSelectionDialog.js';
 import { OverageMenuDialog } from './OverageMenuDialog.js';
 import { EmptyWalletDialog } from './EmptyWalletDialog.js';
 import { relaunchApp } from '../../utils/processUtils.js';
@@ -100,10 +101,20 @@ export const DialogManager = ({
           quotaState.validationRequest.validationDescription
         }
         learnMoreUrl={quotaState.validationRequest.learnMoreUrl}
-        onChoice={uiActions.handleValidationChoice}
+        onChoice={(choice) => uiActions.handleValidationChoice(choice)}
       />
     );
   }
+
+  if (quotaState.tierSelectionRequest) {
+    return (
+      <TierSelectionDialog
+        tiers={quotaState.tierSelectionRequest.tiers}
+        onSelect={(tier) => uiActions.handleTierSelectionChoice(tier)}
+      />
+    );
+  }
+
   if (quotaState.overageMenuRequest) {
     return (
       <OverageMenuDialog

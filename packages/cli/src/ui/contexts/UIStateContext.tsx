@@ -25,6 +25,7 @@ import type {
   FallbackIntent,
   ValidationIntent,
   AgentDefinition,
+  GeminiUserTier,
   FolderDiscoveryResults,
   PolicyUpdateConfirmationRequest,
 } from '@google/gemini-cli-core';
@@ -49,6 +50,11 @@ export interface ValidationDialogRequest {
   validationDescription?: string;
   learnMoreUrl?: string;
   resolve: (intent: ValidationIntent) => void;
+}
+
+export interface TierSelectionDialogRequest {
+  tiers: GeminiUserTier[];
+  resolve: (tier: GeminiUserTier | undefined) => void;
 }
 
 /** Intent for overage menu dialog */
@@ -126,6 +132,7 @@ export interface UIState {
   commandContext: CommandContext;
   commandConfirmationRequest: ConfirmationRequest | null;
   authConsentRequest: ConfirmationRequest | null;
+  tierSelectionRequest: TierSelectionDialogRequest | null;
   confirmUpdateExtensionRequests: ConfirmationRequest[];
   loopDetectionConfirmationRequest: LoopDetectionConfirmationRequest | null;
   permissionConfirmationRequest: PermissionConfirmationRequest | null;

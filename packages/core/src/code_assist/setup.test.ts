@@ -86,6 +86,7 @@ describe('setupUser', () => {
       }),
       isInteractive: () => false,
       getExperiments: () => undefined,
+      getTierSelectionHandler: () => undefined,
     } as unknown as Config;
   });
 

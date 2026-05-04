@@ -765,6 +765,8 @@ export const AppContainer = (props: AppContainerProps) => {
     handleProQuotaChoice,
     validationRequest,
     handleValidationChoice,
+    tierSelectionRequest,
+    handleTierSelectionChoice,
     // G1 AI Credits
     overageMenuRequest,
     handleOverageMenuChoice,
@@ -2428,6 +2430,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
       stats: quotaStats,
       proQuotaRequest,
       validationRequest,
+      tierSelectionRequest,
       // G1 AI Credits dialog state
       overageMenuRequest,
       emptyWalletRequest,
@@ -2437,6 +2440,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
       quotaStats,
       proQuotaRequest,
       validationRequest,
+      tierSelectionRequest,
       overageMenuRequest,
       emptyWalletRequest,
     ],
@@ -2480,6 +2484,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
       commandContext,
       commandConfirmationRequest,
       authConsentRequest,
+      tierSelectionRequest: null,
       confirmUpdateExtensionRequests,
       loopDetectionConfirmationRequest,
       permissionConfirmationRequest,
@@ -2715,6 +2720,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
       handleClearScreen,
       handleProQuotaChoice,
       handleValidationChoice,
+      handleTierSelectionChoice,
       // G1 AI Credits handlers
       handleOverageMenuChoice,
       handleEmptyWalletChoice,
@@ -2817,6 +2823,7 @@ Logging in with Google... Restarting Gemini CLI to continue.
       handleClearScreen,
       handleProQuotaChoice,
       handleValidationChoice,
+      handleTierSelectionChoice,
       handleOverageMenuChoice,
       handleEmptyWalletChoice,
       openSessionBrowser,

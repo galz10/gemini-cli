@@ -30,6 +30,7 @@ import {
   type OverageMenuIntent,
   type EmptyWalletDialogRequest,
   type EmptyWalletIntent,
+  type TierSelectionDialogRequest,
 } from '../contexts/UIStateContext.js';
 import type { LoadedSettings } from '../../config/settings.js';
 import { handleCreditsFlow } from './creditsFlowHandler.js';
@@ -59,6 +60,8 @@ export function useQuotaAndFallback({
     useState<ProQuotaDialogRequest | null>(null);
   const [validationRequest, setValidationRequest] =
     useState<ValidationDialogRequest | null>(null);
+  const [tierSelectionRequest, setTierSelectionRequest] =
+    useState<TierSelectionDialogRequest | null>(null);
   // G1 AI Credits dialog states
   const [overageMenuRequest, setOverageMenuRequest] =
     useState<OverageMenuDialogRequest | null>(null);
@@ -66,6 +69,7 @@ export function useQuotaAndFallback({
     useState<EmptyWalletDialogRequest | null>(null);
   const isDialogPending = useRef(false);
   const isValidationPending = useRef(false);
+  const isTierSelectionPending = useRef(false);
 
   // Set up Flash fallback handler
   useEffect(() => {
@@ -234,6 +238,31 @@ export function useQuotaAndFallback({
     config.setValidationHandler(validationHandler);
   }, [config]);
 
+  // Set up tier selection handler
+  useEffect(() => {
+    const tierSelectionHandler = async (
+      tiers: GeminiUserTier[],
+    ): Promise<GeminiUserTier | undefined> => {
+      if (isTierSelectionPending.current) {
+        return undefined;
+      }
+      isTierSelectionPending.current = true;
+
+      const selectedTier = await new Promise<GeminiUserTier | undefined>(
+        (resolve) => {
+          setTierSelectionRequest({
+            tiers,
+            resolve,
+          });
+        },
+      );
+
+      return selectedTier;
+    };
+
+    config.setTierSelectionHandler(tierSelectionHandler);
+  }, [config]);
+
   const handleProQuotaChoice = useCallback(
     (choice: FallbackIntent) => {
       if (!proQuotaRequest) return;
@@ -280,6 +309,17 @@ export function useQuotaAndFallback({
     [validationRequest, onShowAuthSelection],
   );
 
+  const handleTierSelectionChoice = useCallback(
+    (tier: GeminiUserTier | undefined) => {
+      if (!isTierSelectionPending.current || !tierSelectionRequest) return;
+
+      isTierSelectionPending.current = false;
+      tierSelectionRequest.resolve(tier);
+      setTierSelectionRequest(null);
+    },
+    [tierSelectionRequest],
+  );
+
   // Handler for overage menu dialog (G1 AI Credits flow)
   const handleOverageMenuChoice = useCallback(
     (choice: OverageMenuIntent) => {
@@ -307,6 +347,8 @@ export function useQuotaAndFallback({
     handleProQuotaChoice,
     validationRequest,
     handleValidationChoice,
+    tierSelectionRequest,
+    handleTierSelectionChoice,
     // G1 AI Credits
     overageMenuRequest,
     handleOverageMenuChoice,

@@ -12,6 +12,7 @@ import type {
   ValidationDialogRequest,
   OverageMenuDialogRequest,
   EmptyWalletDialogRequest,
+  TierSelectionDialogRequest,
 } from './UIStateContext.js';
 
 export interface QuotaState {
@@ -19,6 +20,7 @@ export interface QuotaState {
   stats?: QuotaStats;
   proQuotaRequest?: ProQuotaDialogRequest | null;
   validationRequest?: ValidationDialogRequest | null;
+  tierSelectionRequest?: TierSelectionDialogRequest | null;
   overageMenuRequest?: OverageMenuDialogRequest | null;
   emptyWalletRequest?: EmptyWalletDialogRequest | null;
 }

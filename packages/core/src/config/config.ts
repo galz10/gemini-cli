@@ -254,6 +254,10 @@ export interface ResolvedExtensionSetting {
   source?: string;
 }
 
+export type TierSelectionHandler = (
+  tiers: GeminiUserTier[],
+) => Promise<GeminiUserTier | undefined>;
+
 export interface TrajectoryProvider {
   /** Prefix used to identify sessions from this provider (e.g., 'ext:') */
   prefix: string;
@@ -740,6 +744,7 @@ export interface ConfigParameters {
     overageStrategy?: OverageStrategy;
   };
   vertexAiRouting?: VertexAiRoutingConfig;
+  tierSelectionHandler?: TierSelectionHandler;
 }
 
 export class Config implements McpContext, AgentLoopContext {
@@ -756,6 +761,7 @@ export class Config implements McpContext, AgentLoopContext {
   private agentRegistry!: AgentRegistry;
   private readonly acknowledgedAgentsService: AcknowledgedAgentsService;
   private skillManager!: SkillManager;
+  private tierSelectionHandler?: TierSelectionHandler;
   private _sessionId: string;
   private readonly clientName: string | undefined;
   private clientVersion: string;
@@ -1381,6 +1387,7 @@ export class Config implements McpContext, AgentLoopContext {
       overageStrategy: params.billing?.overageStrategy ?? 'ask',
     };
     this.vertexAiRouting = params.vertexAiRouting;
+    this.tierSelectionHandler = params.tierSelectionHandler;
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -1931,6 +1938,14 @@ export class Config implements McpContext, AgentLoopContext {
 
   getValidationHandler(): ValidationHandler | undefined {
     return this.validationHandler;
+  }
+
+  getTierSelectionHandler(): TierSelectionHandler | undefined {
+    return this.tierSelectionHandler;
+  }
+
+  setTierSelectionHandler(handler: TierSelectionHandler): void {
+    this.tierSelectionHandler = handler;
   }
 
   resetTurn(): void {
