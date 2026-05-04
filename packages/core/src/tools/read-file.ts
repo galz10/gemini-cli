@@ -141,19 +141,50 @@ class ReadFileToolInvocation extends BaseToolInvocation<
     }
 
     let llmContent: PartListUnion;
-    if (result.isTruncated) {
-      const [start, end] = result.linesShown!;
-      const total = result.originalLineCount!;
+    const relativePath = makeRelative(
+      this.resolvedPath,
+      this.config.getTargetDir(),
+    );
 
-      llmContent = `
+    const injectionWarning = result.injectionWarning;
+
+    if (typeof result.llmContent === 'string') {
+      let contentStr = '';
+      if (injectionWarning) {
+        contentStr += `${injectionWarning}\n\n`;
+      }
+
+      if (result.isTruncated) {
+        const [start, end] = result.linesShown!;
+        const total = result.originalLineCount!;
+
+        llmContent = `
 IMPORTANT: The file content has been truncated.
 Status: Showing lines ${start}-${end} of ${total} total lines.
 Action: To read more of the file, you can use the 'start_line' and 'end_line' parameters in a subsequent 'read_file' call. For example, to read the next section of the file, use start_line: ${end + 1}.
 
+<file_data path="${relativePath}">
 --- FILE CONTENT (truncated) ---
-${result.llmContent}`;
+${contentStr}${result.llmContent}
+</file_data>`;
+      } else {
+        llmContent = `<file_data path="${relativePath}">\n${contentStr}${result.llmContent || ''}\n</file_data>`;
+      }
     } else {
-      llmContent = result.llmContent || '';
+      // For non-string content (e.g. image/pdf parts), we return an array of parts
+      // if there's an injection warning or other metadata to prepend.
+      const parts: PartListUnion = [];
+      if (injectionWarning) {
+        parts.push({ text: `${injectionWarning}\n\n` });
+      }
+      // Note: We don't wrap image/pdf parts in <file_data> tags as they are not text.
+      // The model gets the file path from the tool call arguments.
+      if (Array.isArray(result.llmContent)) {
+        parts.push(...result.llmContent);
+      } else if (result.llmContent) {
+        parts.push(result.llmContent);
+      }
+      llmContent = parts.length === 1 ? parts[0] : parts;
     }
 
     const lines =

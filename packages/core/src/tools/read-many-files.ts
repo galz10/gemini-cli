@@ -375,16 +375,22 @@ ${finalExclusionPatternsForDescription
             fileResult;
 
           if (typeof fileReadResult.llmContent === 'string') {
-            const separator = DEFAULT_OUTPUT_SEPARATOR_FORMAT.replace(
-              '{filePath}',
-              filePath,
-            );
+            const relativePath = path
+              .relative(this.config.getTargetDir(), filePath)
+              .replace(/\\/g, '/');
+
             let fileContentForLlm = '';
+            if (fileReadResult.injectionWarning) {
+              fileContentForLlm += `${fileReadResult.injectionWarning}\n\n`;
+            }
+
             if (fileReadResult.isTruncated) {
               fileContentForLlm += `[WARNING: This file was truncated. To view the full content, use the 'read_file' tool on this specific file.]\n\n`;
             }
             fileContentForLlm += fileReadResult.llmContent;
-            contentParts.push(`${separator}\n\n${fileContentForLlm}\n\n`);
+            contentParts.push(
+              `<file_data path="${relativePath}">\n${fileContentForLlm}\n</file_data>\n\n`,
+            );
           } else {
             // This is a Part for image/pdf, which we don't add the separator to.
             contentParts.push(fileReadResult.llmContent);

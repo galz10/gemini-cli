@@ -238,7 +238,7 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       expect(await invocation.execute({ abortSignal })).toEqual({
-        llmContent: fileContent,
+        llmContent: `<file_data path="textfile.txt">\n${fileContent}\n</file_data>`,
         returnDisplay: '',
       });
     });
@@ -268,7 +268,7 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       expect(await invocation.execute({ abortSignal })).toEqual({
-        llmContent: fileContent,
+        llmContent: `<file_data path="textfile.txt">\n${fileContent}\n</file_data>`,
         returnDisplay: '',
       });
     });
@@ -319,7 +319,9 @@ describe('ReadFileTool', () => {
       expect(result.llmContent).toContain(
         'IMPORTANT: The file content has been truncated',
       );
+      expect(result.llmContent).toContain('<file_data path="longlines.txt">');
       expect(result.llmContent).toContain('--- FILE CONTENT (truncated) ---');
+      expect(result.llmContent).toContain('</file_data>');
       expect(result.returnDisplay).toContain('some lines were shortened');
     });
 
@@ -371,7 +373,7 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute({ abortSignal });
       expect(result.llmContent).toBe(
-        'Cannot display content of binary file: binary.bin',
+        '<file_data path="binary.bin">\nCannot display content of binary file: binary.bin\n</file_data>',
       );
       expect(result.returnDisplay).toBe('Skipped binary file: binary.bin');
     });
@@ -384,7 +386,9 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toBe(svgContent);
+      expect(result.llmContent).toBe(
+        `<file_data path="image.svg">\n${svgContent}\n</file_data>`,
+      );
       expect(result.returnDisplay).toBe('Read SVG as text: image.svg');
     });
 
@@ -398,7 +402,7 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute({ abortSignal });
       expect(result.llmContent).toBe(
-        'Cannot display content of SVG file larger than 1MB: large.svg',
+        '<file_data path="large.svg">\nCannot display content of SVG file larger than 1MB: large.svg\n</file_data>',
       );
       expect(result.returnDisplay).toBe(
         'Skipped large SVG file (>1MB): large.svg',
@@ -412,7 +416,9 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toBe('');
+      expect(result.llmContent).toBe(
+        '<file_data path="empty.txt">\n\n</file_data>',
+      );
       expect(result.returnDisplay).toBe('');
     });
 
@@ -436,9 +442,11 @@ describe('ReadFileTool', () => {
       expect(result.llmContent).toContain(
         'Status: Showing lines 6-8 of 20 total lines',
       );
+      expect(result.llmContent).toContain('<file_data path="paginated.txt">');
       expect(result.llmContent).toContain('Line 6');
       expect(result.llmContent).toContain('Line 7');
       expect(result.llmContent).toContain('Line 8');
+      expect(result.llmContent).toContain('</file_data>');
       expect(result.returnDisplay).toBe(
         'Read lines 6-8 of 20 from paginated.txt',
       );
@@ -455,7 +463,9 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toBe(tempFileContent);
+      expect(result.llmContent).toBe(
+        `<file_data path=".temp/temp-output.txt">\n${tempFileContent}\n</file_data>`,
+      );
       expect(result.returnDisplay).toBe('');
     });
 

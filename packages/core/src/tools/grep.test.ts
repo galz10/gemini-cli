@@ -180,13 +180,14 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 3 matches for pattern "world" in the workspace directory',
       );
-      expect(result.llmContent).toContain('File: fileA.txt');
+      expect(result.llmContent).toContain('<file_data path="fileA.txt">');
       expect(result.llmContent).toContain('L1: hello world');
       expect(result.llmContent).toContain('L2: second line with world');
       expect(result.llmContent).toContain(
-        `File: ${path.join('sub', 'fileC.txt')}`,
+        `<file_data path="${path.join('sub', 'fileC.txt')}">`,
       );
       expect(result.llmContent).toContain('L1: another world in sub dir');
+      expect(result.llmContent).toContain('</file_data>');
       expect((result.returnDisplay as GrepResult)?.summary).toBe(
         'Found 3 matches',
       );
@@ -197,8 +198,9 @@ describe('GrepTool', () => {
       const params: GrepToolParams = { pattern: 'world' };
       const invocation = grepTool.build(params);
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toContain('File: ..env');
+      expect(result.llmContent).toContain('<file_data path="..env">');
       expect(result.llmContent).toContain('L1: world in ..env');
+      expect(result.llmContent).toContain('</file_data>');
     });
 
     it('should ignore system grep output that escapes base path', async () => {
@@ -216,8 +218,9 @@ describe('GrepTool', () => {
       );
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toContain('File: ..env');
+      expect(result.llmContent).toContain('<file_data path="..env">');
       expect(result.llmContent).toContain('L1: hello');
+      expect(result.llmContent).toContain('</file_data>');
       expect(result.llmContent).not.toContain('secret.txt');
     });
 
@@ -228,8 +231,9 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 1 match for pattern "world" in path "sub"',
       );
-      expect(result.llmContent).toContain('File: fileC.txt'); // Path relative to 'sub'
+      expect(result.llmContent).toContain('<file_data path="fileC.txt">'); // Path relative to 'sub'
       expect(result.llmContent).toContain('L1: another world in sub dir');
+      expect(result.llmContent).toContain('</file_data>');
       expect((result.returnDisplay as GrepResult)?.summary).toBe(
         'Found 1 match',
       );
@@ -245,10 +249,11 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 1 match for pattern "hello" in the workspace directory (filter: "*.js"):',
       );
-      expect(result.llmContent).toContain('File: fileB.js');
+      expect(result.llmContent).toContain('<file_data path="fileB.js">');
       expect(result.llmContent).toContain(
         'L2: function baz() { return "hello"; }',
       );
+      expect(result.llmContent).toContain('</file_data>');
       expect((result.returnDisplay as GrepResult)?.summary).toBe(
         'Found 1 match',
       );
@@ -269,8 +274,9 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 1 match for pattern "hello" in path "sub" (filter: "*.js")',
       );
-      expect(result.llmContent).toContain('File: another.js');
+      expect(result.llmContent).toContain('<file_data path="another.js">');
       expect(result.llmContent).toContain('L1: const greeting = "hello";');
+      expect(result.llmContent).toContain('</file_data>');
       expect((result.returnDisplay as GrepResult)?.summary).toBe(
         'Found 1 match',
       );
@@ -295,8 +301,9 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 1 match for pattern "foo.*bar" in the workspace directory:',
       );
-      expect(result.llmContent).toContain('File: fileB.js');
+      expect(result.llmContent).toContain('<file_data path="fileB.js">');
       expect(result.llmContent).toContain('L1: const foo = "bar";');
+      expect(result.llmContent).toContain('</file_data>');
     }, 30000);
 
     it('should be case-insensitive by default (JS fallback)', async () => {
@@ -306,12 +313,13 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 2 matches for pattern "HELLO" in the workspace directory:',
       );
-      expect(result.llmContent).toContain('File: fileA.txt');
+      expect(result.llmContent).toContain('<file_data path="fileA.txt">');
       expect(result.llmContent).toContain('L1: hello world');
-      expect(result.llmContent).toContain('File: fileB.js');
+      expect(result.llmContent).toContain('<file_data path="fileB.js">');
       expect(result.llmContent).toContain(
         'L2: function baz() { return "hello"; }',
       );
+      expect(result.llmContent).toContain('</file_data>');
     }, 30000);
 
     it('should pass -i flag to system grep for case-insensitivity', async () => {
@@ -435,13 +443,14 @@ describe('GrepTool', () => {
       // Matches from second directory (with directory name prefix)
       const secondDirName = path.basename(secondDir);
       expect(result.llmContent).toContain(
-        `File: ${path.join(secondDirName, 'other.txt')}`,
+        `<file_data path="${path.join(secondDirName, 'other.txt')}">`,
       );
       expect(result.llmContent).toContain('L2: world in second');
       expect(result.llmContent).toContain(
-        `File: ${path.join(secondDirName, 'another.js')}`,
+        `<file_data path="${path.join(secondDirName, 'another.js')}">`,
       );
       expect(result.llmContent).toContain('L1: function world()');
+      expect(result.llmContent).toContain('</file_data>');
 
       // Clean up
       await fs.rm(secondDir, { recursive: true, force: true });
@@ -510,8 +519,9 @@ describe('GrepTool', () => {
       expect(result.llmContent).toContain(
         'Found 1 match for pattern "world" in path "sub"',
       );
-      expect(result.llmContent).toContain('File: fileC.txt');
+      expect(result.llmContent).toContain('<file_data path="fileC.txt">');
       expect(result.llmContent).toContain('L1: another world in sub dir');
+      expect(result.llmContent).toContain('</file_data>');
 
       // Should not contain matches from second directory
       expect(result.llmContent).not.toContain('test.txt');
@@ -534,9 +544,10 @@ describe('GrepTool', () => {
         'results limited to 2 matches for performance',
       );
       // It should find matches in fileA.txt first (2 matches)
-      expect(result.llmContent).toContain('File: fileA.txt');
+      expect(result.llmContent).toContain('<file_data path="fileA.txt">');
       expect(result.llmContent).toContain('L1: hello world');
       expect(result.llmContent).toContain('L2: second line with world');
+      expect(result.llmContent).toContain('</file_data>');
       // And sub/fileC.txt should be excluded because limit reached
       expect(result.llmContent).not.toContain('File: sub/fileC.txt');
       expect((result.returnDisplay as GrepResult)?.summary).toBe(
@@ -555,15 +566,16 @@ describe('GrepTool', () => {
       // fileA.txt has 2 worlds, but should only return 1.
       // sub/fileC.txt has 1 world, so total matches = 2.
       expect(result.llmContent).toContain('Found 2 matches');
-      expect(result.llmContent).toContain('File: fileA.txt');
+      expect(result.llmContent).toContain('<file_data path="fileA.txt">');
       // Should be a match
       expect(result.llmContent).toContain('L1: hello world');
       // Should NOT be a match (but might be in context as L2-)
       expect(result.llmContent).not.toContain('L2: second line with world');
       expect(result.llmContent).toContain(
-        `File: ${path.join('sub', 'fileC.txt')}`,
+        `<file_data path="${path.join('sub', 'fileC.txt')}">`,
       );
       expect(result.llmContent).toContain('L1: another world in sub dir');
+      expect(result.llmContent).toContain('</file_data>');
     });
 
     it('should return only file paths when names_only is true', async () => {

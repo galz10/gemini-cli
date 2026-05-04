@@ -275,9 +275,8 @@ describe('ReadManyFilesTool', () => {
       const result = await invocation.execute({
         abortSignal: new AbortController().signal,
       });
-      const expectedPath = path.join(tempRootDir, 'file1.txt');
       expect(result.llmContent).toEqual([
-        `--- ${expectedPath} ---\n\nContent of file1\n\n`,
+        `<file_data path="file1.txt">\nContent of file1\n</file_data>\n\n`,
         `\n--- End of content ---`,
       ]);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -294,16 +293,18 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       const content = result.llmContent as string[];
-      const expectedPath1 = path.join(tempRootDir, 'file1.txt');
-      const expectedPath2 = path.join(tempRootDir, 'subdir/file2.js');
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nContent1\n\n`),
+          c.includes(
+            `<file_data path="file1.txt">\nContent1\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\nContent2\n\n`),
+          c.includes(
+            `<file_data path="subdir/file2.js">\nContent2\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -321,16 +322,18 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       const content = result.llmContent as string[];
-      const expectedPath1 = path.join(tempRootDir, 'file.txt');
-      const expectedPath2 = path.join(tempRootDir, 'another.txt');
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nText file\n\n`),
+          c.includes(
+            `<file_data path="file.txt">\nText file\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\nAnother text\n\n`),
+          c.includes(
+            `<file_data path="another.txt">\nAnother text\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect(content.find((c) => c.includes('sub/data.json'))).toBeUndefined();
@@ -348,9 +351,8 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       const content = result.llmContent as string[];
-      const expectedPath = path.join(tempRootDir, 'src/main.ts');
       expect(content).toEqual([
-        `--- ${expectedPath} ---\n\nMain content\n\n`,
+        `<file_data path="src/main.ts">\nMain content\n</file_data>\n\n`,
         `\n--- End of content ---`,
       ]);
       expect(
@@ -384,9 +386,8 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       const content = result.llmContent as string[];
-      const expectedPath = path.join(tempRootDir, 'src/app.js');
       expect(content).toEqual([
-        `--- ${expectedPath} ---\n\napp code\n\n`,
+        `<file_data path="src/app.js">\napp code\n</file_data>\n\n`,
         `\n--- End of content ---`,
       ]);
       expect(
@@ -406,19 +407,18 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       const content = result.llmContent as string[];
-      const expectedPath1 = path.join(
-        tempRootDir,
-        'node_modules/some-lib/index.js',
-      );
-      const expectedPath2 = path.join(tempRootDir, 'src/app.js');
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nlib code\n\n`),
+          c.includes(
+            `<file_data path="node_modules/some-lib/index.js">\nlib code\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\napp code\n\n`),
+          c.includes(
+            `<file_data path="src/app.js">\napp code\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -484,12 +484,13 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       const content = result.llmContent as string[];
-      const expectedPath = path.join(tempRootDir, 'notes.txt');
       expect(
         content.some(
           (c) =>
             typeof c === 'string' &&
-            c.includes(`--- ${expectedPath} ---\n\ntext notes\n\n`),
+            c.includes(
+              `<file_data path="notes.txt">\ntext notes\n</file_data>\n\n`,
+            ),
         ),
       ).toBe(true);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -618,17 +619,23 @@ describe('ReadManyFilesTool', () => {
       if (!Array.isArray(content)) {
         throw new Error(`llmContent is not an array: ${content}`);
       }
-      const expectedPath1 = path.join(tempDir1, 'file1.txt');
-      const expectedPath2 = path.join(tempDir2, 'file2.txt');
+      const expectedRelativePath1 = 'file1.txt';
+      const expectedRelativePath2 = path
+        .relative(tempDir1, path.join(tempDir2, 'file2.txt'))
+        .replace(/\\/g, '/');
 
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath1} ---\n\nContent1\n\n`),
+          c.includes(
+            `<file_data path="${expectedRelativePath1}">\nContent1\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect(
         content.some((c) =>
-          c.includes(`--- ${expectedPath2} ---\n\nContent2\n\n`),
+          c.includes(
+            `<file_data path="${expectedRelativePath2}">\nContent2\n</file_data>\n\n`,
+          ),
         ),
       ).toBe(true);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -678,13 +685,8 @@ describe('ReadManyFilesTool', () => {
       const result = await invocation.execute({
         abortSignal: new AbortController().signal,
       });
-      const expectedPath = path.join(tempRootDir, filePath);
       expect(result.llmContent).toEqual([
-        `--- ${expectedPath} ---
-
-Content of receive-detail
-
-`,
+        `<file_data path="${filePath}">\nContent of receive-detail\n</file_data>\n\n`,
         `\n--- End of content ---`,
       ]);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -699,13 +701,8 @@ Content of receive-detail
       const result = await invocation.execute({
         abortSignal: new AbortController().signal,
       });
-      const expectedPath = path.join(tempRootDir, 'file[1].txt');
       expect(result.llmContent).toEqual([
-        `--- ${expectedPath} ---
-
-Content of file[1]
-
-`,
+        `<file_data path="file[1].txt">\nContent of file[1]\n</file_data>\n\n`,
         `\n--- End of content ---`,
       ]);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -818,10 +815,20 @@ Content of file[1]
       );
 
       // Verify valid files were processed
-      const expectedPath1 = path.join(tempRootDir, 'valid1.txt');
-      const expectedPath3 = path.join(tempRootDir, 'valid3.txt');
-      expect(content.some((c) => c.includes(expectedPath1))).toBe(true);
-      expect(content.some((c) => c.includes(expectedPath3))).toBe(true);
+      expect(
+        content.some((c) =>
+          c.includes(
+            `<file_data path="valid1.txt">\nValid content 1\n</file_data>\n\n`,
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        content.some((c) =>
+          c.includes(
+            `<file_data path="valid3.txt">\nValid content 3\n</file_data>\n\n`,
+          ),
+        ),
+      ).toBe(true);
     });
 
     it('should execute file operations concurrently', async () => {

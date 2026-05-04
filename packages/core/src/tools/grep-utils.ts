@@ -8,6 +8,7 @@ import fsPromises from 'node:fs/promises';
 import { debugLogger } from '../utils/debugLogger.js';
 import { MAX_LINE_LENGTH_TEXT_FILE } from '../utils/constants.js';
 import type { GrepResult } from './tools.js';
+import { scanForInjection } from '../utils/fileUtils.js';
 
 /**
  * Result object for a single grep match
@@ -204,8 +205,16 @@ export async function formatGrepResults(
   llmContent += `:\n---\n`;
 
   for (const filePath in matchesByFile) {
-    llmContent += `File: ${filePath}\n`;
-    matchesByFile[filePath].forEach((match) => {
+    const fileMatches = matchesByFile[filePath];
+    const combinedLines = fileMatches.map((m) => m.line).join('\n');
+    const injectionWarning = scanForInjection(combinedLines);
+
+    llmContent += `<file_data path="${filePath}">\n`;
+    if (injectionWarning) {
+      llmContent += `${injectionWarning}\n\n`;
+    }
+
+    fileMatches.forEach((match) => {
       // If isContext is undefined, assume it's a match (false)
       const separator = match.isContext ? '-' : ':';
       // trimEnd to avoid double newlines if line has them, but we want to preserve indentation
@@ -218,7 +227,7 @@ export async function formatGrepResults(
       }
       llmContent += `L${match.lineNumber}${separator} ${lineContent}\n`;
     });
-    llmContent += '---\n';
+    llmContent += '</file_data>\n---\n';
   }
 
   return {
