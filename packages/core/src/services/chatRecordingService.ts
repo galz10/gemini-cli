@@ -339,6 +339,7 @@ export class ChatRecordingService {
 
             // Migrate the entire legacy record to the new file
             const initialMetadata = {
+              metadata: { source: 'Gemini-CLI', type: 'session-data' },
               sessionId: this.sessionId,
               projectHash: this.projectHash,
               startTime: this.cachedConversation.startTime,
@@ -420,6 +421,7 @@ export class ChatRecordingService {
             : undefined;
 
         const initialMetadata = {
+          metadata: { source: 'Gemini-CLI', type: 'session-data' },
           sessionId: this.sessionId,
           projectHash: this.projectHash,
           startTime: new Date().toISOString(),

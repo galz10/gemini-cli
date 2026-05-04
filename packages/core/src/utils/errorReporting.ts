@@ -5,12 +5,16 @@
  */
 
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import type { Content } from '@google/genai';
 import { debugLogger } from './debugLogger.js';
+import { Storage } from '../config/storage.js';
 
 interface ErrorReportData {
+  metadata: {
+    source: string;
+    type: string;
+  };
   error: { message: string; stack?: string } | { message: string };
   context?: unknown;
   additionalInfo?: Record<string, unknown>;
@@ -28,11 +32,21 @@ export async function reportError(
   baseMessage: string,
   context?: Content[] | Record<string, unknown> | unknown[],
   type = 'general',
-  reportingDir = os.tmpdir(), // for testing
+  reportingDir = Storage.getGlobalTempDir(), // Modified to use global gemini sessions dir
 ): Promise<void> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const reportFileName = `gemini-client-error-${type}-${timestamp}.json`;
   const reportPath = path.join(reportingDir, reportFileName);
+
+  // Ensure reporting directory exists
+  try {
+    await fs.mkdir(reportingDir, { recursive: true });
+  } catch (err) {
+    debugLogger.error(
+      `Failed to create reporting directory: ${reportingDir}`,
+      err,
+    );
+  }
 
   let errorToReport: { message: string; stack?: string };
   if (error instanceof Error) {
@@ -49,7 +63,13 @@ export async function reportError(
     errorToReport = { message: String(error) };
   }
 
-  const reportContent: ErrorReportData = { error: errorToReport };
+  const reportContent: ErrorReportData = {
+    metadata: {
+      source: 'Gemini-CLI',
+      type: 'error-report',
+    },
+    error: errorToReport,
+  };
 
   if (context) {
     reportContent.context = context;

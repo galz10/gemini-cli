@@ -53,6 +53,7 @@ describe('reportError', () => {
     const parsedReport = JSON.parse(reportContent);
 
     expect(parsedReport).toEqual({
+      metadata: { source: 'Gemini-CLI', type: 'error-report' },
       error: { message: 'Test error', stack: 'Test stack' },
       context,
     });
@@ -76,6 +77,7 @@ describe('reportError', () => {
     const parsedReport = JSON.parse(reportContent);
 
     expect(parsedReport).toEqual({
+      metadata: { source: 'Gemini-CLI', type: 'error-report' },
       error: { message: 'Test plain object error' },
     });
 
@@ -97,6 +99,7 @@ describe('reportError', () => {
     const parsedReport = JSON.parse(reportContent);
 
     expect(parsedReport).toEqual({
+      metadata: { source: 'Gemini-CLI', type: 'error-report' },
       error: { message: 'Just a string error' },
     });
 
@@ -112,6 +115,11 @@ describe('reportError', () => {
     const context = ['some context'];
     const type = 'general';
     const nonExistentDir = path.join(testDir, 'non-existent-dir');
+
+    // Mock mkdir to fail as well
+    vi.spyOn(fs, 'mkdir').mockRejectedValue(new Error('mkdir failed'));
+    // Mock writeFile to fail
+    vi.spyOn(fs, 'writeFile').mockRejectedValue(new Error('Write failed'));
 
     await reportError(error, baseMessage, context, type, nonExistentDir);
 
@@ -193,6 +201,7 @@ describe('reportError', () => {
     const parsedReport = JSON.parse(reportContent);
 
     expect(parsedReport).toEqual({
+      metadata: { source: 'Gemini-CLI', type: 'error-report' },
       error: { message: 'Error without context', stack: 'No context stack' },
     });
 

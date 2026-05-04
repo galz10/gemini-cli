@@ -18,10 +18,11 @@ import {
 } from '../utils/paths.js';
 import { ProjectRegistry } from './projectRegistry.js';
 import { StorageMigration } from './storageMigration.js';
+import { debugLogger } from '../utils/debugLogger.js';
 
 export const OAUTH_FILE = 'oauth_creds.json';
 export const TRUSTED_FOLDERS_FILENAME = 'trustedFolders.json';
-const TMP_DIR_NAME = 'tmp';
+const SESSIONS_DIR_NAME = 'sessions';
 const BIN_DIR_NAME = 'bin';
 const AGENTS_DIR_NAME = '.agents';
 
@@ -155,8 +156,12 @@ export class Storage {
     return path.join(Storage.getSystemConfigDir(), 'policies');
   }
 
+  static getSystemTempDir(): string {
+    return os.tmpdir();
+  }
+
   static getGlobalTempDir(): string {
-    return path.join(Storage.getGlobalGeminiDir(), TMP_DIR_NAME);
+    return path.join(Storage.getGlobalGeminiDir(), SESSIONS_DIR_NAME);
   }
 
   static getGlobalBinDir(): string {
@@ -251,9 +256,38 @@ export class Storage {
 
       this.projectIdentifier = await registry.getShortId(this.getProjectRoot());
       await this.performMigration();
+      await this.purgeLegacyTempFiles();
     })();
 
     return this.initPromise;
+  }
+
+  /**
+   * Purges legacy temporary files from the system temp directory that may be flagged by AV.
+   */
+  private async purgeLegacyTempFiles(): Promise<void> {
+    const sysTempDir = Storage.getSystemTempDir();
+    try {
+      const files = await fs.promises.readdir(sysTempDir);
+      const legacyFiles = files.filter(
+        (f) =>
+          f.startsWith('gemini-client-error-') || f.startsWith('gemini-cli-'),
+      );
+
+      for (const file of legacyFiles) {
+        const filePath = path.join(sysTempDir, file);
+        try {
+          const stats = await fs.promises.stat(filePath);
+          if (stats.isFile()) {
+            await fs.promises.unlink(filePath);
+          }
+        } catch (e) {
+          debugLogger.warn(`Failed to purge legacy temp file: ${filePath}`, e);
+        }
+      }
+    } catch (e) {
+      debugLogger.warn('Failed to read system temp directory for purging', e);
+    }
   }
 
   /**
