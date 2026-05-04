@@ -454,365 +454,416 @@ describe('HookRunner', () => {
           expect.objectContaining({ shell: false }),
         );
       });
-    });
-  });
 
-  describe('executeHooksParallel', () => {
-    it('should execute multiple hooks in parallel', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-      ];
-
-      // Mock both commands to succeed
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            setImmediate(() => callback(0));
-          }
-        },
-      );
-
-      const results = await hookRunner.executeHooksParallel(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-      );
-
-      expect(results).toHaveLength(2);
-      expect(results.every((r) => r.success)).toBe(true);
-      expect(spawn).toHaveBeenCalledTimes(2);
-    });
-
-    it('should call onHookStart and onHookEnd callbacks', async () => {
-      const configs: HookConfig[] = [
-        { name: 'hook1', type: HookType.Command, command: './hook1.sh' },
-      ];
-
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            setImmediate(() => callback(0));
-          }
-        },
-      );
-
-      const onStart = vi.fn();
-      const onEnd = vi.fn();
-
-      await hookRunner.executeHooksParallel(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-        onStart,
-        onEnd,
-      );
-
-      expect(onStart).toHaveBeenCalledWith(configs[0], 0);
-      expect(onEnd).toHaveBeenCalledWith(
-        configs[0],
-        expect.objectContaining({ success: true }),
-      );
-    });
-
-    it('should handle mixed success and failure', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-      ];
-
-      let callCount = 0;
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            const exitCode = callCount++ === 0 ? 0 : 1; // First succeeds, second fails
-            setImmediate(() => callback(exitCode));
-          }
-        },
-      );
-
-      const results = await hookRunner.executeHooksParallel(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-      );
-
-      expect(results).toHaveLength(2);
-      expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(false);
-    });
-  });
-
-  describe('executeHooksSequential', () => {
-    it('should execute multiple hooks in sequence', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-      ];
-
-      const executionOrder: string[] = [];
-
-      // Mock both commands to succeed
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            const args = vi.mocked(spawn).mock.calls[
-              executionOrder.length
-            ][1] as string[];
-            let command = args[args.length - 1];
-            // On Windows, the command is wrapped in PowerShell syntax
-            if (command.includes('; if ($LASTEXITCODE -ne 0)')) {
-              command = command.split(';')[0];
-            }
-            executionOrder.push(command);
-            setImmediate(() => callback(0));
-          }
-        },
-      );
-
-      const results = await hookRunner.executeHooksSequential(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-      );
-
-      expect(results).toHaveLength(2);
-      expect(results.every((r) => r.success)).toBe(true);
-      expect(spawn).toHaveBeenCalledTimes(2);
-      // Verify they were called sequentially
-      expect(executionOrder).toEqual(['./hook1.sh', './hook2.sh']);
-    });
-
-    it('should call onHookStart and onHookEnd callbacks sequentially', async () => {
-      const configs: HookConfig[] = [
-        { name: 'hook1', type: HookType.Command, command: './hook1.sh' },
-        { name: 'hook2', type: HookType.Command, command: './hook2.sh' },
-      ];
-
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            setImmediate(() => callback(0));
-          }
-        },
-      );
-
-      const onStart = vi.fn();
-      const onEnd = vi.fn();
-
-      await hookRunner.executeHooksSequential(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-        onStart,
-        onEnd,
-      );
-
-      expect(onStart).toHaveBeenCalledTimes(2);
-      expect(onEnd).toHaveBeenCalledTimes(2);
-      expect(onStart).toHaveBeenNthCalledWith(1, configs[0], 0);
-      expect(onStart).toHaveBeenNthCalledWith(2, configs[1], 1);
-    });
-
-    it('should continue execution even if a hook fails', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-        { type: HookType.Command, command: './hook3.sh' },
-      ];
-
-      let callCount = 0;
-      mockSpawn.mockStderrOn.mockImplementation(
-        (event: string, callback: (data: Buffer) => void) => {
-          if (event === 'data' && callCount === 1) {
-            // Second hook fails
-            setImmediate(() => callback(Buffer.from('Hook 2 failed')));
-          }
-        },
-      );
-
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            const exitCode = callCount++ === 1 ? 1 : 0; // Second fails, others succeed
-            setImmediate(() => callback(exitCode));
-          }
-        },
-      );
-
-      const results = await hookRunner.executeHooksSequential(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-      );
-
-      expect(results).toHaveLength(3);
-      expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(false);
-      expect(results[2].success).toBe(true);
-      expect(spawn).toHaveBeenCalledTimes(3);
-    });
-
-    it('should pass modified input from one hook to the next for BeforeAgent', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-      ];
-
-      const mockBeforeAgentInput = {
-        ...mockInput,
-        prompt: 'Original prompt',
-      };
-
-      const mockOutput1 = {
-        decision: 'allow' as const,
-        hookSpecificOutput: {
-          additionalContext: 'Context from hook 1',
-        },
-        format: 'json',
-      };
-
-      let hookCallCount = 0;
-      mockSpawn.mockStdoutOn.mockImplementation(
-        (event: string, callback: (data: Buffer) => void) => {
-          if (event === 'data') {
-            if (hookCallCount === 0) {
-              setImmediate(() =>
-                callback(Buffer.from(JSON.stringify(mockOutput1))),
-              );
-            }
-          }
-        },
-      );
-
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            hookCallCount++;
-            setImmediate(() => callback(0));
-          }
-        },
-      );
-
-      const results = await hookRunner.executeHooksSequential(
-        configs,
-        HookEventName.BeforeAgent,
-        mockBeforeAgentInput,
-      );
-
-      expect(results).toHaveLength(2);
-      expect(results[0].success).toBe(true);
-      expect(results[0].output).toEqual(mockOutput1);
-
-      // Verify that the second hook received modified input
-      const secondHookInput = JSON.parse(
-        vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
-      );
-      expect(secondHookInput.prompt).toContain('Original prompt');
-      expect(secondHookInput.prompt).toContain('Context from hook 1');
-    });
-
-    it('should pass modified LLM request from one hook to the next for BeforeModel', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-      ];
-
-      const mockBeforeModelInput = {
-        ...mockInput,
-        llm_request: {
-          model: 'gemini-1.5-pro',
-          messages: [{ role: 'user', content: 'Hello' }],
-        },
-      };
-
-      const mockOutput1 = {
-        decision: 'allow' as const,
-        hookSpecificOutput: {
-          llm_request: {
-            temperature: 0.7,
+      it('should block restricted environment variables in hookConfig.env', async () => {
+        const hookConfig: HookConfig = {
+          type: HookType.Command,
+          command: 'env',
+          env: {
+            LD_PRELOAD: '/tmp/evil.so',
+            NODE_OPTIONS: '--inspect',
+            PATH: '/tmp/evil/bin',
+            SAFE_VAR: 'safe-value',
           },
-        },
-      };
+        };
 
-      let hookCallCount = 0;
-      mockSpawn.mockStdoutOn.mockImplementation(
-        (event: string, callback: (data: Buffer) => void) => {
-          if (event === 'data') {
-            if (hookCallCount === 0) {
-              setImmediate(() =>
-                callback(Buffer.from(JSON.stringify(mockOutput1))),
-              );
+        // Mock successful execution
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
             }
-          }
-        },
-      );
+          },
+        );
 
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            hookCallCount++;
-            setImmediate(() => callback(0));
-          }
-        },
-      );
+        await hookRunner.executeHook(
+          hookConfig,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-      const results = await hookRunner.executeHooksSequential(
-        configs,
-        HookEventName.BeforeModel,
-        mockBeforeModelInput,
-      );
+        expect(spawn).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.any(Array),
+          expect.objectContaining({
+            env: expect.not.objectContaining({
+              LD_PRELOAD: '/tmp/evil.so',
+              NODE_OPTIONS: '--inspect',
+              PATH: '/tmp/evil/bin',
+            }),
+          }),
+        );
 
-      expect(results).toHaveLength(2);
-      expect(results[0].success).toBe(true);
-
-      // Verify that the second hook received modified input
-      const secondHookInput = JSON.parse(
-        vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
-      );
-      expect(secondHookInput.llm_request.model).toBe('gemini-1.5-pro');
-      expect(secondHookInput.llm_request.temperature).toBe(0.7);
+        // Verify that safe variables are still allowed
+        const callArgs = vi.mocked(spawn).mock.calls[0][2] as {
+          env: Record<string, string>;
+        };
+        expect(callArgs.env['SAFE_VAR']).toBe('safe-value');
+        expect(mockDebugLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            'Security: Blocked restricted environment variable injection',
+          ),
+        );
+      });
     });
 
-    it('should not modify input if hook fails', async () => {
-      const configs: HookConfig[] = [
-        { type: HookType.Command, command: './hook1.sh' },
-        { type: HookType.Command, command: './hook2.sh' },
-      ];
+    describe('executeHooksParallel', () => {
+      it('should execute multiple hooks in parallel', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+        ];
 
-      mockSpawn.mockStderrOn.mockImplementation(
-        (event: string, callback: (data: Buffer) => void) => {
-          if (event === 'data') {
-            setImmediate(() => callback(Buffer.from('Hook failed')));
-          }
-        },
-      );
+        // Mock both commands to succeed
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
+            }
+          },
+        );
 
-      mockSpawn.mockProcessOn.mockImplementation(
-        (event: string, callback: (code: number) => void) => {
-          if (event === 'close') {
-            setImmediate(() => callback(1)); // All hooks fail
-          }
-        },
-      );
+        const results = await hookRunner.executeHooksParallel(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
 
-      const results = await hookRunner.executeHooksSequential(
-        configs,
-        HookEventName.BeforeTool,
-        mockInput,
-      );
+        expect(results).toHaveLength(2);
+        expect(results.every((r) => r.success)).toBe(true);
+        expect(spawn).toHaveBeenCalledTimes(2);
+      });
 
-      expect(results).toHaveLength(2);
-      expect(results.every((r) => !r.success)).toBe(true);
+      it('should call onHookStart and onHookEnd callbacks', async () => {
+        const configs: HookConfig[] = [
+          { name: 'hook1', type: HookType.Command, command: './hook1.sh' },
+        ];
 
-      // Verify that both hooks received the same original input
-      const firstHookInput = JSON.parse(
-        vi.mocked(mockSpawn.stdin.write).mock.calls[0][0],
-      );
-      const secondHookInput = JSON.parse(
-        vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
-      );
-      expect(firstHookInput).toEqual(secondHookInput);
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        const onStart = vi.fn();
+        const onEnd = vi.fn();
+
+        await hookRunner.executeHooksParallel(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+          onStart,
+          onEnd,
+        );
+
+        expect(onStart).toHaveBeenCalledWith(configs[0], 0);
+        expect(onEnd).toHaveBeenCalledWith(
+          configs[0],
+          expect.objectContaining({ success: true }),
+        );
+      });
+
+      it('should handle mixed success and failure', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+        ];
+
+        let callCount = 0;
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              const exitCode = callCount++ === 0 ? 0 : 1; // First succeeds, second fails
+              setImmediate(() => callback(exitCode));
+            }
+          },
+        );
+
+        const results = await hookRunner.executeHooksParallel(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(results).toHaveLength(2);
+        expect(results[0].success).toBe(true);
+        expect(results[1].success).toBe(false);
+      });
+    });
+
+    describe('executeHooksSequential', () => {
+      it('should execute multiple hooks in sequence', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+        ];
+
+        const executionOrder: string[] = [];
+
+        // Mock both commands to succeed
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              const args = vi.mocked(spawn).mock.calls[
+                executionOrder.length
+              ][1] as string[];
+              let command = args[args.length - 1];
+              // On Windows, the command is wrapped in PowerShell syntax
+              if (command.includes('; if ($LASTEXITCODE -ne 0)')) {
+                command = command.split(';')[0];
+              }
+              executionOrder.push(command);
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        const results = await hookRunner.executeHooksSequential(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(results).toHaveLength(2);
+        expect(results.every((r) => r.success)).toBe(true);
+        expect(spawn).toHaveBeenCalledTimes(2);
+        // Verify they were called sequentially
+        expect(executionOrder).toEqual(['./hook1.sh', './hook2.sh']);
+      });
+
+      it('should call onHookStart and onHookEnd callbacks sequentially', async () => {
+        const configs: HookConfig[] = [
+          { name: 'hook1', type: HookType.Command, command: './hook1.sh' },
+          { name: 'hook2', type: HookType.Command, command: './hook2.sh' },
+        ];
+
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        const onStart = vi.fn();
+        const onEnd = vi.fn();
+
+        await hookRunner.executeHooksSequential(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+          onStart,
+          onEnd,
+        );
+
+        expect(onStart).toHaveBeenCalledTimes(2);
+        expect(onEnd).toHaveBeenCalledTimes(2);
+        expect(onStart).toHaveBeenNthCalledWith(1, configs[0], 0);
+        expect(onStart).toHaveBeenNthCalledWith(2, configs[1], 1);
+      });
+
+      it('should continue execution even if a hook fails', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+          { type: HookType.Command, command: './hook3.sh' },
+        ];
+
+        let callCount = 0;
+        mockSpawn.mockStderrOn.mockImplementation(
+          (event: string, callback: (data: Buffer) => void) => {
+            if (event === 'data' && callCount === 1) {
+              // Second hook fails
+              setImmediate(() => callback(Buffer.from('Hook 2 failed')));
+            }
+          },
+        );
+
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              const exitCode = callCount++ === 1 ? 1 : 0; // Second fails, others succeed
+              setImmediate(() => callback(exitCode));
+            }
+          },
+        );
+
+        const results = await hookRunner.executeHooksSequential(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(results).toHaveLength(3);
+        expect(results[0].success).toBe(true);
+        expect(results[1].success).toBe(false);
+        expect(results[2].success).toBe(true);
+        expect(spawn).toHaveBeenCalledTimes(3);
+      });
+
+      it('should pass modified input from one hook to the next for BeforeAgent', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+        ];
+
+        const mockBeforeAgentInput = {
+          ...mockInput,
+          prompt: 'Original prompt',
+        };
+
+        const mockOutput1 = {
+          decision: 'allow' as const,
+          hookSpecificOutput: {
+            additionalContext: 'Context from hook 1',
+          },
+          format: 'json',
+        };
+
+        let hookCallCount = 0;
+        mockSpawn.mockStdoutOn.mockImplementation(
+          (event: string, callback: (data: Buffer) => void) => {
+            if (event === 'data') {
+              if (hookCallCount === 0) {
+                setImmediate(() =>
+                  callback(Buffer.from(JSON.stringify(mockOutput1))),
+                );
+              }
+            }
+          },
+        );
+
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              hookCallCount++;
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        const results = await hookRunner.executeHooksSequential(
+          configs,
+          HookEventName.BeforeAgent,
+          mockBeforeAgentInput,
+        );
+
+        expect(results).toHaveLength(2);
+        expect(results[0].success).toBe(true);
+        expect(results[0].output).toEqual(mockOutput1);
+
+        // Verify that the second hook received modified input
+        const secondHookInput = JSON.parse(
+          vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
+        );
+        expect(secondHookInput.prompt).toContain('Original prompt');
+        expect(secondHookInput.prompt).toContain('Context from hook 1');
+      });
+
+      it('should pass modified LLM request from one hook to the next for BeforeModel', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+        ];
+
+        const mockBeforeModelInput = {
+          ...mockInput,
+          llm_request: {
+            model: 'gemini-1.5-pro',
+            messages: [{ role: 'user', content: 'Hello' }],
+          },
+        };
+
+        const mockOutput1 = {
+          decision: 'allow' as const,
+          hookSpecificOutput: {
+            llm_request: {
+              temperature: 0.7,
+            },
+          },
+        };
+
+        let hookCallCount = 0;
+        mockSpawn.mockStdoutOn.mockImplementation(
+          (event: string, callback: (data: Buffer) => void) => {
+            if (event === 'data') {
+              if (hookCallCount === 0) {
+                setImmediate(() =>
+                  callback(Buffer.from(JSON.stringify(mockOutput1))),
+                );
+              }
+            }
+          },
+        );
+
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              hookCallCount++;
+              setImmediate(() => callback(0));
+            }
+          },
+        );
+
+        const results = await hookRunner.executeHooksSequential(
+          configs,
+          HookEventName.BeforeModel,
+          mockBeforeModelInput,
+        );
+
+        expect(results).toHaveLength(2);
+        expect(results[0].success).toBe(true);
+
+        // Verify that the second hook received modified input
+        const secondHookInput = JSON.parse(
+          vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
+        );
+        expect(secondHookInput.llm_request.model).toBe('gemini-1.5-pro');
+        expect(secondHookInput.llm_request.temperature).toBe(0.7);
+      });
+
+      it('should not modify input if hook fails', async () => {
+        const configs: HookConfig[] = [
+          { type: HookType.Command, command: './hook1.sh' },
+          { type: HookType.Command, command: './hook2.sh' },
+        ];
+
+        mockSpawn.mockStderrOn.mockImplementation(
+          (event: string, callback: (data: Buffer) => void) => {
+            if (event === 'data') {
+              setImmediate(() => callback(Buffer.from('Hook failed')));
+            }
+          },
+        );
+
+        mockSpawn.mockProcessOn.mockImplementation(
+          (event: string, callback: (code: number) => void) => {
+            if (event === 'close') {
+              setImmediate(() => callback(1)); // All hooks fail
+            }
+          },
+        );
+
+        const results = await hookRunner.executeHooksSequential(
+          configs,
+          HookEventName.BeforeTool,
+          mockInput,
+        );
+
+        expect(results).toHaveLength(2);
+        expect(results.every((r) => !r.success)).toBe(true);
+
+        // Verify that both hooks received the same original input
+        const firstHookInput = JSON.parse(
+          vi.mocked(mockSpawn.stdin.write).mock.calls[0][0],
+        );
+        const secondHookInput = JSON.parse(
+          vi.mocked(mockSpawn.stdin.write).mock.calls[1][0],
+        );
+        expect(firstHookInput).toEqual(secondHookInput);
+      });
     });
   });
 

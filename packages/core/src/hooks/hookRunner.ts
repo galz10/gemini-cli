@@ -42,6 +42,22 @@ const EXIT_CODE_SUCCESS = 0;
 const EXIT_CODE_NON_BLOCKING_ERROR = 1;
 
 /**
+ * Environment variables that are restricted from being set by hooks for security reasons.
+ */
+const RESTRICTED_ENV_VARS = [
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'NODE_OPTIONS',
+  'PYTHONPATH',
+  'JAVA_TOOL_OPTIONS',
+  'PERL5LIB',
+  'RUBYLIB',
+  'PATH',
+];
+
+/**
  * Hook runner that executes command hooks
  */
 export class HookRunner {
@@ -344,15 +360,22 @@ export class HookRunner {
         command = `${command}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`;
       }
 
-      // Set up environment variables
-      const env = {
+      // Set up base environment variables
+      const baseEnv = {
         ...sanitizeEnvironment(process.env, this.config.sanitizationConfig),
         GEMINI_PROJECT_DIR: input.cwd,
         GEMINI_PLANS_DIR: this.config.storage.getPlansDir(),
         GEMINI_CWD: input.cwd,
         GEMINI_SESSION_ID: input.session_id,
         CLAUDE_PROJECT_DIR: input.cwd, // For compatibility
-        ...hookConfig.env,
+      };
+
+      // Filter restricted environment variables from hook configuration
+      const filteredHookEnv = this.sanitizeHookEnv(hookConfig.env || {});
+
+      const env = {
+        ...baseEnv,
+        ...filteredHookEnv,
       };
 
       const child = spawn(
@@ -557,5 +580,25 @@ export class HookRunner {
         reason: text,
       };
     }
+  }
+
+  /**
+   * Sanitizes user-provided environment variables for hooks.
+   */
+  private sanitizeHookEnv(env: Record<string, string>): Record<string, string> {
+    const sanitized: Record<string, string> = {};
+    const restricted = new Set(RESTRICTED_ENV_VARS.map((v) => v.toUpperCase()));
+
+    for (const [key, value] of Object.entries(env)) {
+      if (restricted.has(key.toUpperCase())) {
+        debugLogger.warn(
+          `Security: Blocked restricted environment variable injection in hook: ${key}`,
+        );
+        continue;
+      }
+      sanitized[key] = value;
+    }
+
+    return sanitized;
   }
 }
