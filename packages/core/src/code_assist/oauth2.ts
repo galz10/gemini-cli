@@ -105,6 +105,30 @@ export interface OauthWebLogin {
 
 const oauthClientPromises = new Map<AuthType, Promise<AuthClient>>();
 
+/**
+ * Wraps a promise with a timeout.
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage: string,
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new FatalAuthenticationError(errorMessage));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 function getUseEncryptedStorageFlag() {
   return process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] === 'true';
 }
@@ -169,11 +193,21 @@ async function initOauthClient(
   if (credentials) {
     client.setCredentials(credentials as Credentials);
     try {
+      debugLogger.log('Verifying cached credentials...');
       // This will verify locally that the credentials look good.
-      const { token } = await client.getAccessToken();
+      const { token } = await withTimeout(
+        client.getAccessToken(),
+        30000,
+        'Timed out while refreshing OAuth token. Please check your network connection or log in again.',
+      );
       if (token) {
+        debugLogger.log('Validating token with server...');
         // This will check with the server to see if it hasn't been revoked.
-        await client.getTokenInfo(token);
+        await withTimeout(
+          client.getTokenInfo(token),
+          30000,
+          'Timed out while validating OAuth token. Please check your network connection or log in again.',
+        );
 
         if (!userAccountManager.getCachedGoogleAccount()) {
           try {
@@ -193,9 +227,12 @@ async function initOauthClient(
       }
     } catch (error) {
       debugLogger.debug(
-        `Cached credentials are not valid:`,
+        `Cached credentials are not valid or refresh timed out:`,
         getErrorMessage(error),
       );
+      if (error instanceof FatalAuthenticationError) {
+        writeToStderr(`\n[ERROR] ${error.message}\n`);
+      }
     }
   }
 
