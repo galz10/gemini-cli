@@ -319,15 +319,21 @@ export class OAuthUtils {
    * Parse WWW-Authenticate header to extract OAuth information.
    *
    * @param header The WWW-Authenticate header value
-   * @returns The resource metadata URI if found
+   * @returns An object containing the resource metadata URI and registration URI if found
    */
-  static parseWWWAuthenticateHeader(header: string): string | null {
+  static parseWWWAuthenticateHeader(header: string): {
+    resourceMetadataUri: string | null;
+    registrationUri: string | null;
+  } {
     // Parse Bearer realm and resource_metadata
-    const match = header.match(/resource_metadata="([^"]+)"/);
-    if (match) {
-      return match[1];
-    }
-    return null;
+    const resourceMetadataMatch = header.match(/resource_metadata="([^"]+)"/);
+    const registrationUriMatch = header.match(/registration_uri="([^"]+)"/);
+    return {
+      resourceMetadataUri: resourceMetadataMatch
+        ? resourceMetadataMatch[1]
+        : null,
+      registrationUri: registrationUriMatch ? registrationUriMatch[1] : null,
+    };
   }
 
   /**
@@ -341,7 +347,7 @@ export class OAuthUtils {
     wwwAuthenticate: string,
     mcpServerUrl?: string,
   ): Promise<MCPOAuthConfig | null> {
-    const resourceMetadataUri =
+    const { resourceMetadataUri, registrationUri } =
       this.parseWWWAuthenticateHeader(wwwAuthenticate);
     if (!resourceMetadataUri) {
       return null;
@@ -374,7 +380,12 @@ export class OAuthUtils {
       await this.discoverAuthorizationServerMetadata(authServerUrl);
 
     if (authServerMetadata) {
-      return this.metadataToOAuthConfig(authServerMetadata);
+      const config = this.metadataToOAuthConfig(authServerMetadata);
+      // Prefer registrationUri from WWW-Authenticate header if present
+      if (registrationUri) {
+        config.registrationUrl = registrationUri;
+      }
+      return config;
     }
 
     return null;
