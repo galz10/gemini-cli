@@ -51,8 +51,26 @@ export class IneligibleTierError extends Error {
   readonly ineligibleTiers: IneligibleTier[];
 
   constructor(ineligibleTiers: IneligibleTier[]) {
-    const reasons = ineligibleTiers.map((t) => t.reasonMessage).join(', ');
-    super(reasons);
+    const isEnterpriseRestriction = ineligibleTiers.some(
+      (t) =>
+        t.reasonCode === IneligibleTierReasonCode.DASHER_USER ||
+        t.reasonMessage?.toLowerCase().includes('enterprise'),
+    );
+
+    let message: string;
+    if (isEnterpriseRestriction) {
+      message =
+        'This feature requires a Google Workspace (Enterprise) account.\n' +
+        'If you are using a personal Gmail account, please switch to a Workspace account ' +
+        'or use an API key for individual access.';
+    } else {
+      message = ineligibleTiers
+        .map((t) => t.reasonMessage)
+        .filter(Boolean)
+        .join(', ');
+    }
+
+    super(message);
     this.name = 'IneligibleTierError';
     this.ineligibleTiers = ineligibleTiers;
   }

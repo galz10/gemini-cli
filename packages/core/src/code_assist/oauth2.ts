@@ -87,6 +87,20 @@ const OAUTH_SCOPE = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
+// Minimal scopes for personal accounts that might not have GCP projects.
+const MINIMAL_OAUTH_SCOPE = [
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+];
+
+function isPersonalDomain(email: string | null): boolean {
+  if (!email) {
+    return false;
+  }
+  const domain = email.split('@')[1]?.toLowerCase();
+  return domain === 'gmail.com' || domain === 'googlemail.com';
+}
+
 const HTTP_REDIRECT = 301;
 const SIGN_IN_SUCCESS_URL =
   'https://developers.google.com/gemini-code-assist/auth_success_gemini';
@@ -412,10 +426,12 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
     const redirectUri = 'https://codeassist.google.com/authcode';
     const codeVerifier = await client.generateCodeVerifierAsync();
     const state = crypto.randomBytes(32).toString('hex');
+    const email = userAccountManager.getCachedGoogleAccount();
+    const scopes = isPersonalDomain(email) ? MINIMAL_OAUTH_SCOPE : OAUTH_SCOPE;
     const authUrl: string = client.generateAuthUrl({
       redirect_uri: redirectUri,
       access_type: 'offline',
-      scope: OAUTH_SCOPE,
+      scope: scopes,
       code_challenge_method: CodeChallengeMethod.S256,
       code_challenge: codeVerifier.codeChallenge,
       state,
@@ -508,13 +524,15 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
   // The `redirectUri` sent to Google's authorization server MUST use a loopback IP literal
   // (i.e., 'localhost' or '127.0.0.1'). This is a strict security policy for credentials of
   // type 'Desktop app' or 'Web application' (when using loopback flow) to mitigate
-  // authorization code interception attacks.
+  // mitigate authorization code interception attacks.
   const redirectUri = `http://127.0.0.1:${port}/oauth2callback`;
   const state = crypto.randomBytes(32).toString('hex');
+  const email = userAccountManager.getCachedGoogleAccount();
+  const scopes = isPersonalDomain(email) ? MINIMAL_OAUTH_SCOPE : OAUTH_SCOPE;
   const authUrl = client.generateAuthUrl({
     redirect_uri: redirectUri,
     access_type: 'offline',
-    scope: OAUTH_SCOPE,
+    scope: scopes,
     state,
   });
 
