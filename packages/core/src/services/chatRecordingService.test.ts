@@ -1285,6 +1285,37 @@ describe('ChatRecordingService', () => {
     });
   });
 
+  describe('Strict File Permissions', () => {
+    it('should create recording directory and files with strict permissions', async () => {
+      // Use real FS for this test to verify actual mode bits
+      await chatRecordingService.initialize();
+      const conversationFile = chatRecordingService.getConversationFilePath()!;
+      const chatsDir = path.dirname(conversationFile);
+
+      // Verify directory permissions (0o700)
+      const dirStats = fs.statSync(chatsDir);
+      // mask with 0o777 to get only permission bits
+      expect(dirStats.mode & 0o777).toBe(0o700);
+
+      // Verify file permissions (0o600)
+      const fileStats = fs.statSync(conversationFile);
+      expect(fileStats.mode & 0o777).toBe(0o600);
+    });
+
+    it('should fix permissions of existing files and directories during initialization', async () => {
+      const chatsDir = path.join(testTempDir, 'chats');
+      fs.mkdirSync(chatsDir, { recursive: true, mode: 0o755 });
+      const testFile = path.join(chatsDir, 'legacy.jsonl');
+      fs.writeFileSync(testFile, '{}', { mode: 0o644 });
+
+      // Initialize should trigger fixPermissions
+      await chatRecordingService.initialize();
+
+      expect(fs.statSync(chatsDir).mode & 0o777).toBe(0o700);
+      expect(fs.statSync(testFile).mode & 0o777).toBe(0o600);
+    });
+  });
+
   describe('ENOENT (missing directory) handling', () => {
     it('should ensure directory exists before writing conversation file', async () => {
       await chatRecordingService.initialize();
@@ -1302,7 +1333,7 @@ describe('ChatRecordingService', () => {
       const conversationFile = chatRecordingService.getConversationFilePath()!;
       expect(mkdirSyncSpy).toHaveBeenCalledWith(
         path.dirname(conversationFile),
-        { recursive: true },
+        { recursive: true, mode: 0o700 },
       );
 
       // mkdirSync should be called before writeFileSync

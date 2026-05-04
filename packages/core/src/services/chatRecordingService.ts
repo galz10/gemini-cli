@@ -386,7 +386,10 @@ export class ChatRecordingService {
           chatsDir = path.join(chatsDir, safeParentId);
         }
 
-        fs.mkdirSync(chatsDir, { recursive: true });
+        // Ensure the directory exists with strict permissions
+        fs.mkdirSync(chatsDir, { recursive: true, mode: 0o700 });
+        // Also ensure any parent directories we just created have correct permissions
+        this.fixPermissions(chatsDir);
 
         const timestamp = new Date()
           .toISOString()
@@ -452,8 +455,24 @@ export class ChatRecordingService {
     if (!this.conversationFile) return;
     try {
       const line = JSON.stringify(record) + '\n';
-      fs.mkdirSync(path.dirname(this.conversationFile), { recursive: true });
-      fs.appendFileSync(this.conversationFile, line);
+      const dir = path.dirname(this.conversationFile);
+
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        this.fixPermissions(dir);
+      }
+
+      if (!fs.existsSync(this.conversationFile)) {
+        fs.writeFileSync(this.conversationFile, line, { mode: 0o600 });
+      } else {
+        fs.appendFileSync(this.conversationFile, line);
+        // Ensure permissions are strict even if file already existed with different umask
+        try {
+          fs.chmodSync(this.conversationFile, 0o600);
+        } catch {
+          // Ignore chmod errors on systems that don't support it
+        }
+      }
     } catch (error) {
       if (isNodeError(error) && error.code === 'ENOSPC') {
         this.conversationFile = null;
@@ -461,6 +480,26 @@ export class ChatRecordingService {
       } else {
         throw error;
       }
+    }
+  }
+
+  /**
+   * Recursively ensures strict permissions on a directory and its contents.
+   */
+  private fixPermissions(targetPath: string): void {
+    try {
+      const stats = fs.statSync(targetPath);
+      if (stats.isDirectory()) {
+        fs.chmodSync(targetPath, 0o700);
+        const files = fs.readdirSync(targetPath);
+        for (const file of files) {
+          this.fixPermissions(path.join(targetPath, file));
+        }
+      } else if (stats.isFile()) {
+        fs.chmodSync(targetPath, 0o600);
+      }
+    } catch (error) {
+      debugLogger.debug(`Failed to fix permissions for ${targetPath}:`, error);
     }
   }
 
