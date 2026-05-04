@@ -39,6 +39,7 @@ import {
   createWorkingStdio,
   writeToStderr,
 } from '../utils/stdio.js';
+import { isVsCodeRemote } from '../utils/headless.js';
 import {
   enableLineWrapping,
   disableMouseEvents,
@@ -291,11 +292,19 @@ async function initOauthClient(
 
     const webLogin = await authWithWeb(client);
 
+    let remoteGuidance = '';
+    if (isVsCodeRemote()) {
+      remoteGuidance =
+        '\n\n💡 VS Code Remote detected: If the browser does not open or the redirect fails,\n' +
+        'ensure that port forwarding is active for the callback port.\n' +
+        'Alternatively, run the command with NO_BROWSER=true for manual code entry.';
+    }
+
     coreEvents.emit(CoreEvent.UserFeedback, {
       severity: 'info',
       message:
         `\n\nAttempting to open authentication page in your browser.\n` +
-        `Otherwise navigate to:\n\n${webLogin.authUrl}\n\n\n`,
+        `Otherwise navigate to:\n\n${webLogin.authUrl}\n\n${remoteGuidance}\n\n`,
     });
     try {
       // Attempt to open the authentication URL in the default browser.

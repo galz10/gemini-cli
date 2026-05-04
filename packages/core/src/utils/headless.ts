@@ -47,3 +47,16 @@ export function isHeadlessMode(options?: HeadlessModeOptions): boolean {
   // Fallback: check process.argv for flags that imply headless mode.
   return process.argv.some((arg) => arg === '-p' || arg === '--prompt');
 }
+
+/**
+ * Detects if the CLI is running within a VS Code Remote environment.
+ * @returns true if running in VS Code Remote.
+ */
+export function isVsCodeRemote(): boolean {
+  return (
+    process.env['TERM_PROGRAM'] === 'vscode' &&
+    (!!process.env['VSCODE_IPC_HOOK_CLI'] ||
+      !!process.env['VSCODE_GIT_ASKPASS_NODE'] ||
+      !!process.env['REMOTE_CONTAINERS'])
+  );
+}

@@ -71,6 +71,7 @@ vi.mock('crypto');
 vi.mock('node:readline');
 vi.mock('../utils/headless.js', () => ({
   isHeadlessMode: vi.fn(),
+  isVsCodeRemote: vi.fn(),
 }));
 vi.mock('../utils/browser.js', () => ({
   shouldAttemptBrowserLaunch: () => true,
