@@ -137,6 +137,7 @@ export interface ColorizeCodeOptions {
   disableColor?: boolean;
   returnLines?: boolean;
   paddingX?: number;
+  onTruncationChange?: (isTruncated: boolean) => void;
 }
 
 /**
@@ -162,6 +163,7 @@ export function colorizeCode({
   disableColor = false,
   returnLines = false,
   paddingX = 0,
+  onTruncationChange,
 }: ColorizeCodeOptions): React.ReactNode | React.ReactNode[] {
   const codeToHighlight = code.replace(/\n$/, '');
   const activeTheme = theme || themeManager.getActiveTheme();
@@ -233,6 +235,7 @@ export function colorizeCode({
           maxWidth={maxWidth}
           additionalHiddenLinesCount={hiddenLinesCount}
           overflowDirection="top"
+          onTruncationChange={onTruncationChange}
         >
           {renderedLines}
         </MaxSizedBox>
@@ -284,6 +287,7 @@ export function colorizeCode({
           maxWidth={maxWidth}
           additionalHiddenLinesCount={hiddenLinesCount}
           overflowDirection="top"
+          onTruncationChange={onTruncationChange}
         >
           {fallbackLines}
         </MaxSizedBox>

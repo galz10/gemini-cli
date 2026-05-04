@@ -80,6 +80,8 @@ export const ToolConfirmationMessage: React.FC<
     expanded: false,
   });
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isBodyTruncated, setIsBodyTruncated] = useState(false);
+
   const isMcpToolDetailsExpanded =
     mcpDetailsExpansionState.callId === callId
       ? mcpDetailsExpansionState.expanded
@@ -118,14 +120,28 @@ export const ToolConfirmationMessage: React.FC<
   }, [confirmationDetails]);
 
   const deceptiveUrlWarningText = useMemo(() => {
-    if (deceptiveUrlWarnings.length === 0) return null;
-    return `**Warning:** Deceptive URL(s) detected:\n\n${deceptiveUrlWarnings
-      .map(
-        (w) =>
-          `   **Original:** ${w.originalUrl}\n   **Actual Host (Punycode):** ${w.punycodeUrl}`,
-      )
-      .join('\n\n')}`;
-  }, [deceptiveUrlWarnings]);
+    const warnings: string[] = [];
+
+    if (isBodyTruncated) {
+      warnings.push(
+        `**[SECURITY WARNING]** This command is too long to display. You must expand the view (${formatCommand(Command.SHOW_MORE_LINES)}) to review the full command before allowing execution.`,
+      );
+    }
+
+    if (deceptiveUrlWarnings.length > 0) {
+      warnings.push(
+        `**Warning:** Deceptive URL(s) detected:\n\n${deceptiveUrlWarnings
+          .map(
+            (w) =>
+              `   **Original:** ${w.originalUrl}\n   **Actual Host (Punycode):** ${w.punycodeUrl}`,
+          )
+          .join('\n\n')}`,
+      );
+    }
+
+    if (warnings.length === 0) return null;
+    return warnings.join('\n\n---\n\n');
+  }, [deceptiveUrlWarnings, isBodyTruncated]);
 
   const onSecurityWarningsRefChange = useCallback((node: DOMElement | null) => {
     if (observerRef.current) {
@@ -289,18 +305,21 @@ export const ToolConfirmationMessage: React.FC<
           label: 'Allow once',
           value: ToolConfirmationOutcome.ProceedOnce,
           key: 'Allow once',
+          disabled: isBodyTruncated,
         });
         if (isTrustedFolder) {
           options.push({
             label: 'Allow for this session',
             value: ToolConfirmationOutcome.ProceedAlways,
             key: 'Allow for this session',
+            disabled: isBodyTruncated,
           });
           if (allowPermanentApproval) {
             options.push({
               label: 'Allow for this file in all future sessions',
               value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
               key: 'Allow for this file in all future sessions',
+              disabled: isBodyTruncated,
             });
           }
         }
@@ -325,18 +344,21 @@ export const ToolConfirmationMessage: React.FC<
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
+        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
         options.push({
           label: 'Allow for this session',
           value: ToolConfirmationOutcome.ProceedAlways,
           key: 'Allow for this session',
+          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
           options.push({
             label: 'Allow for all future sessions',
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: 'Allow for all future sessions',
+            disabled: isBodyTruncated,
           });
         }
       }
@@ -350,18 +372,21 @@ export const ToolConfirmationMessage: React.FC<
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
+        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
         options.push({
           label: `Allow for this session`,
           value: ToolConfirmationOutcome.ProceedAlways,
           key: `Allow for this session`,
+          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
           options.push({
             label: `Allow this command for all future sessions`,
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: `Allow for all future sessions`,
+            disabled: isBodyTruncated,
           });
         }
       }
@@ -375,18 +400,21 @@ export const ToolConfirmationMessage: React.FC<
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
+        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
         options.push({
           label: 'Allow for this session',
           value: ToolConfirmationOutcome.ProceedAlways,
           key: 'Allow for this session',
+          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
           options.push({
             label: 'Allow for all future sessions',
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: 'Allow for all future sessions',
+            disabled: isBodyTruncated,
           });
         }
       }
@@ -400,23 +428,27 @@ export const ToolConfirmationMessage: React.FC<
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
+        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
         options.push({
           label: 'Allow tool for this session',
           value: ToolConfirmationOutcome.ProceedAlwaysTool,
           key: 'Allow tool for this session',
+          disabled: isBodyTruncated,
         });
         options.push({
           label: 'Allow all server tools for this session',
           value: ToolConfirmationOutcome.ProceedAlwaysServer,
           key: 'Allow all server tools for this session',
+          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
           options.push({
             label: 'Allow tool for all future sessions',
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: 'Allow tool for all future sessions',
+            disabled: isBodyTruncated,
           });
         }
       }
@@ -433,6 +465,7 @@ export const ToolConfirmationMessage: React.FC<
     allowPermanentApproval,
     config,
     isDiffingEnabled,
+    isBodyTruncated,
   ]);
 
   const availableBodyContentHeight = useCallback(() => {
@@ -623,6 +656,7 @@ export const ToolConfirmationMessage: React.FC<
                       : undefined
                   }
                   terminalWidth={Math.max(terminalWidth, 1) - 4}
+                  onTruncationChange={setIsBodyTruncated}
                 />
               </Box>
             </>
@@ -663,6 +697,7 @@ export const ToolConfirmationMessage: React.FC<
                   bodyHeight !== undefined
                     ? Math.max(bodyHeight - 2, 2)
                     : undefined,
+                onTruncationChange: setIsBodyTruncated,
               })}
             </Box>
             <Box flexDirection="column">
@@ -774,6 +809,7 @@ export const ToolConfirmationMessage: React.FC<
                     : undefined
                 }
                 maxWidth={Math.max(terminalWidth, 1) - 4}
+                onTruncationChange={setIsBodyTruncated}
               >
                 <Box flexDirection="column">
                   {commandsToDisplay.map((cmd, idx) => (
@@ -873,6 +909,7 @@ export const ToolConfirmationMessage: React.FC<
                           bodyHeight !== undefined
                             ? Math.max(bodyHeight - 2, 2)
                             : undefined,
+                        onTruncationChange: setIsBodyTruncated,
                       })}
                     </Box>
                   </>

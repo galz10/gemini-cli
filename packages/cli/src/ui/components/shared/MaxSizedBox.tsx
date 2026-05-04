@@ -27,6 +27,7 @@ export interface MaxSizedBoxProps {
   overflowDirection?: 'top' | 'bottom';
   additionalHiddenLinesCount?: number;
   paddingX?: number;
+  onTruncationChange?: (isTruncated: boolean) => void;
 }
 
 /**
@@ -40,6 +41,7 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   overflowDirection = 'top',
   additionalHiddenLinesCount = 0,
   paddingX = 0,
+  onTruncationChange,
 }) => {
   const id = useId();
   const { addOverflowingId, removeOverflowingId } = useOverflowActions() || {};
@@ -83,6 +85,10 @@ export const MaxSizedBox: React.FC<MaxSizedBoxProps> = ({
   const isOverflowing =
     (effectiveMaxHeight !== undefined && contentHeight > effectiveMaxHeight) ||
     additionalHiddenLinesCount > 0;
+
+  useEffect(() => {
+    onTruncationChange?.(isOverflowing);
+  }, [isOverflowing, onTruncationChange]);
 
   // If we're overflowing, we need to hide at least 1 line for the message.
   const visibleContentHeight =

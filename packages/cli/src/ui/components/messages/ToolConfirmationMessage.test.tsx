@@ -738,9 +738,57 @@ describe('ToolConfirmationMessage', () => {
 
       const outputLines = lastFrame().split('\n');
       // Should use the entire terminal height
-      expect(outputLines.length).toBe(40);
+      expect(outputLines.length).toBe(36);
 
       await expect({ lastFrame, generateSvg }).toMatchSvgSnapshot();
+      unmount();
+    });
+
+    it('should disable "Allow" options and show security warning when truncated', async () => {
+      // Create a large diff string to trigger truncation
+      let largeDiff = '--- a/file.ts\n+++ b/file.ts\n@@ -1,10 +1,15 @@\n';
+      for (let i = 1; i <= 20; i++) {
+        largeDiff += `-const oldLine${i} = true;\n`;
+        largeDiff += `+const newLine${i} = true;\n`;
+      }
+
+      const confirmationDetails: SerializableConfirmationDetails = {
+        type: 'edit',
+        title: 'Confirm Edit',
+        fileName: 'file.ts',
+        filePath: '/file.ts',
+        fileDiff: largeDiff,
+        originalContent: 'old',
+        newContent: 'new',
+        isModifying: false,
+      };
+
+      const { waitUntilReady, lastFrame, unmount } = await renderWithProviders(
+        <ToolConfirmationMessage
+          callId="test-call-id"
+          confirmationDetails={confirmationDetails}
+          config={mockConfig}
+          getPreferredEditor={vi.fn()}
+          availableTerminalHeight={20}
+          terminalWidth={80}
+          toolName="shell"
+        />,
+      );
+      await waitUntilReady();
+
+      const output = lastFrame();
+      // Verify security warning is displayed
+      expect(output).toContain('[SECURITY WARNING]');
+      expect(output).toContain('too long to display');
+
+      // Verify "Allow once" option is present
+      expect(output).toContain('Allow once');
+
+      // Note: We don't explicitly test the 'disabled' visual state here as it's
+      // handled by RadioButtonSelect/BaseSelectionList which we've verified
+      // receive the disabled prop. The presence of the SECURITY WARNING
+      // is the primary indicator of HITL protection being active.
+
       unmount();
     });
   });

@@ -17,15 +17,7 @@ Apply this change?
 `;
 
 exports[`ToolConfirmationMessage > height allocation and layout > should expand to available height for large edit diffs 1`] = `
-"╭──────────────────────────────────────────────────────────────────────────────╮
-│ ... 10 hidden (Ctrl+O) ...                                                   │
-│  6 - const oldLine6 = true;                                                  │
-│  6 + const newLine6 = true;                                                  │
-│  7 - const oldLine7 = true;                                                  │
-│  7 + const newLine7 = true;                                                  │
-│  8 - const oldLine8 = true;                                                  │
-│  8 + const newLine8 = true;                                                  │
-│  9 - const oldLine9 = true;                                                  │
+"... first 5 lines hidden (Ctrl+O to show) ...
 │  9 + const newLine9 = true;                                                  │
 │ 10 - const oldLine10 = true;                                                 │
 │ 10 + const newLine10 = true;                                                 │
@@ -50,11 +42,15 @@ exports[`ToolConfirmationMessage > height allocation and layout > should expand 
 │ 20 - const oldLine20 = true;                                                 │
 │ 20 + const newLine20 = true;                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+⚠  [SECURITY WARNING] This command is too long to display. You must expand the view (Ctrl+O) to
+   review the full command before allowing execution.
+
 Apply this change?
 
-● 1. Allow once                 
+  1. Allow once
   2. Allow for this session
-  3. Modify with external editor
+● 3. Modify with external editor
   4. No, suggest changes (esc)
 "
 `;

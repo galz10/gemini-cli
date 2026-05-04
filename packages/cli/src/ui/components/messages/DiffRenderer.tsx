@@ -91,6 +91,7 @@ interface DiffRendererProps {
   theme?: Theme;
   disableColor?: boolean;
   paddingX?: number;
+  onTruncationChange?: (isTruncated: boolean) => void;
 }
 
 const DEFAULT_TAB_WIDTH = 4; // Spaces per tab for normalization
@@ -104,6 +105,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
   theme,
   disableColor = false,
   paddingX = 0,
+  onTruncationChange,
 }) => {
   const settings = useSettings();
 
@@ -162,6 +164,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
         settings,
         disableColor,
         paddingX,
+        onTruncationChange,
       });
     } else {
       const key = filename ? `diff-box-${filename}` : undefined;
@@ -172,6 +175,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
           maxHeight={availableTerminalHeight}
           maxWidth={terminalWidth}
           key={key}
+          onTruncationChange={onTruncationChange}
         >
           {renderDiffLines({
             parsedLines,
@@ -196,6 +200,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
     tabWidth,
     disableColor,
     paddingX,
+    onTruncationChange,
   ]);
 
   return renderedOutput;
