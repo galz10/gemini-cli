@@ -93,6 +93,7 @@ describe('CodeAssistServer', () => {
       headers: {
         'Content-Type': 'application/json',
         'x-custom-header': 'test-value',
+        'x-goog-user-project': 'test-project',
       },
       responseType: 'json',
       body: expect.any(String),
@@ -427,6 +428,7 @@ describe('CodeAssistServer', () => {
       body: expect.any(String),
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-user-project': 'test-project',
       },
       signal: undefined,
       retry: false,

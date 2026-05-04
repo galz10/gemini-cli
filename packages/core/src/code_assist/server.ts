@@ -49,6 +49,8 @@ import {
 } from '../billing/billing.js';
 import { logBillingEvent, logInvalidChunk } from '../telemetry/loggers.js';
 import { coreEvents } from '../utils/events.js';
+import { debugLogger } from '../utils/debugLogger.js';
+import { getErrorMessage } from '../utils/errors.js';
 import { CreditsUsedEvent } from '../telemetry/billingEvents.js';
 import {
   fromCountTokenResponse,
@@ -283,6 +285,16 @@ export class CodeAssistServer implements ContentGenerator {
             'gcloud config set project [PROJECT_ID]\n' +
             'or setting export GOOGLE_CLOUD_PROJECT=...',
         );
+      } else if (
+        isNotFoundError(e) &&
+        req.cloudaicompanionProject === 'cloudshell-gca'
+      ) {
+        throw new Error(
+          'The default Cloud Shell Gemini project ("cloudshell-gca") was not found in this environment.\n' +
+            'This often happens in Google Cloud Labs. Please set your active Lab project by running:\n' +
+            'export GOOGLE_CLOUD_PROJECT=$(gcloud config get-value project)\n' +
+            'or using the --project flag.',
+        );
       } else {
         throw e;
       }
@@ -414,28 +426,44 @@ export class CodeAssistServer implements ContentGenerator {
     signal?: AbortSignal,
     retryDelay: number = 100,
   ): Promise<T> {
-    const res = await this.client.request<T>({
-      url: this.getMethodUrl(method),
-      method: 'POST',
-      headers: {
+    const url = this.getMethodUrl(method);
+    try {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...this.httpOptions.headers,
-      },
-      responseType: 'json',
-      body: JSON.stringify(req),
-      signal,
-      retryConfig: {
-        retryDelay,
-        retry: 3,
-        noResponseRetries: 3,
-        statusCodesToRetry: [
-          [429, 429],
-          [499, 499],
-          [500, 599],
-        ],
-      },
-    });
-    return res.data;
+      };
+
+      if (this.projectId) {
+        headers['x-goog-user-project'] = this.projectId;
+      }
+
+      const res = await this.client.request<T>({
+        url,
+        method: 'POST',
+        headers,
+        responseType: 'json',
+        body: JSON.stringify(req),
+        signal,
+        retryConfig: {
+          retryDelay,
+          retry: 3,
+          noResponseRetries: 3,
+          statusCodesToRetry: [
+            [429, 429],
+            [499, 499],
+            [500, 599],
+          ],
+        },
+      });
+      return res.data;
+    } catch (error) {
+      debugLogger.error(`API request failed: POST ${url}`, {
+        projectId: this.projectId,
+        method,
+        error: getErrorMessage(error),
+      });
+      throw error;
+    }
   }
 
   private async makeGetRequest<T>(
@@ -468,16 +496,22 @@ export class CodeAssistServer implements ContentGenerator {
     req: object,
     signal?: AbortSignal,
   ): Promise<AsyncGenerator<T>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.httpOptions.headers,
+    };
+
+    if (this.projectId) {
+      headers['x-goog-user-project'] = this.projectId;
+    }
+
     const res = await this.client.request<AsyncIterable<unknown>>({
       url: this.getMethodUrl(method),
       method: 'POST',
       params: {
         alt: 'sse',
       },
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.httpOptions.headers,
-      },
+      headers,
       responseType: 'stream',
       body: JSON.stringify(req),
       signal,
@@ -592,5 +626,17 @@ function isPermissionDeniedError(error: unknown): boolean {
     typeof error.response === 'object' &&
     'status' in error.response &&
     error.response.status === 403
+  );
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    !!error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    error.response.status === 404
   );
 }

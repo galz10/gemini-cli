@@ -213,6 +213,27 @@ async function initOauthClient(
         // the service account email.
       });
       await computeClient.getAccessToken();
+
+      // Attempt to discover project ID if not already set in environment
+      if (
+        !process.env['GOOGLE_CLOUD_PROJECT'] &&
+        !process.env['GOOGLE_CLOUD_PROJECT_ID']
+      ) {
+        try {
+          const auth = new GoogleAuth();
+          const projectId = await auth.getProjectId();
+          if (projectId) {
+            debugLogger.log(`Discovered project ID via ADC: ${projectId}`);
+            process.env['GOOGLE_CLOUD_PROJECT'] = projectId;
+          }
+        } catch (projectIdError) {
+          debugLogger.warn(
+            'Failed to discover project ID via ADC:',
+            getErrorMessage(projectIdError),
+          );
+        }
+      }
+
       debugLogger.log('Authentication successful.');
 
       // Do not cache creds in this case; note that Compute client will handle its own refresh
