@@ -41,6 +41,7 @@ export interface OAuthAuthorizationServerMetadata {
 export interface OAuthProtectedResourceMetadata {
   resource: string;
   authorization_servers?: string[];
+  scopes_supported?: string[];
   bearer_methods_supported?: string[];
   resource_documentation?: string;
   resource_signing_alg_values_supported?: string[];
@@ -139,16 +140,18 @@ export class OAuthUtils {
    * Convert authorization server metadata to OAuth configuration.
    *
    * @param metadata The authorization server metadata
+   * @param preferredScopes Optional list of preferred scopes
    * @returns The OAuth configuration
    */
   static metadataToOAuthConfig(
     metadata: OAuthAuthorizationServerMetadata,
+    preferredScopes?: string[],
   ): MCPOAuthConfig {
     return {
       authorizationUrl: metadata.authorization_endpoint,
       issuer: metadata.issuer,
       tokenUrl: metadata.token_endpoint,
-      scopes: metadata.scopes_supported || [],
+      scopes: preferredScopes || metadata.scopes_supported || [],
       registrationUrl: metadata.registration_endpoint,
     };
   }
@@ -276,7 +279,10 @@ export class OAuthUtils {
           await this.discoverAuthorizationServerMetadata(authServerUrl);
 
         if (authServerMetadata) {
-          const config = this.metadataToOAuthConfig(authServerMetadata);
+          const config = this.metadataToOAuthConfig(
+            authServerMetadata,
+            resourceMetadata.scopes_supported,
+          );
           if (authServerMetadata.registration_endpoint) {
             debugLogger.log(
               'Dynamic client registration is supported at:',
@@ -319,15 +325,25 @@ export class OAuthUtils {
    * Parse WWW-Authenticate header to extract OAuth information.
    *
    * @param header The WWW-Authenticate header value
-   * @returns The resource metadata URI if found
+   * @returns An object containing discovered URIs and scope if found
    */
-  static parseWWWAuthenticateHeader(header: string): string | null {
-    // Parse Bearer realm and resource_metadata
-    const match = header.match(/resource_metadata="([^"]+)"/);
-    if (match) {
-      return match[1];
-    }
-    return null;
+  static parseWWWAuthenticateHeader(header: string): {
+    resourceMetadataUri: string | null;
+    registrationUri: string | null;
+    scope: string | null;
+  } {
+    // Parse Bearer realm, resource_metadata, registration_uri, and scope
+    const resourceMetadataMatch = header.match(/resource_metadata="([^"]+)"/);
+    const registrationUriMatch = header.match(/registration_uri="([^"]+)"/);
+    const scopeMatch = header.match(/scope="([^"]+)"/);
+
+    return {
+      resourceMetadataUri: resourceMetadataMatch
+        ? resourceMetadataMatch[1]
+        : null,
+      registrationUri: registrationUriMatch ? registrationUriMatch[1] : null,
+      scope: scopeMatch ? scopeMatch[1] : null,
+    };
   }
 
   /**
@@ -341,7 +357,7 @@ export class OAuthUtils {
     wwwAuthenticate: string,
     mcpServerUrl?: string,
   ): Promise<MCPOAuthConfig | null> {
-    const resourceMetadataUri =
+    const { resourceMetadataUri, registrationUri, scope } =
       this.parseWWWAuthenticateHeader(wwwAuthenticate);
     if (!resourceMetadataUri) {
       return null;
@@ -374,7 +390,25 @@ export class OAuthUtils {
       await this.discoverAuthorizationServerMetadata(authServerUrl);
 
     if (authServerMetadata) {
-      return this.metadataToOAuthConfig(authServerMetadata);
+      // MCP Scope Selection Strategy:
+      // 1. Scopes from WWW-Authenticate header
+      // 2. scopes_supported from Protected Resource Metadata
+      // 3. Fallback to server defaults (done in metadataToOAuthConfig)
+      let preferredScopes: string[] | undefined;
+      if (scope) {
+        preferredScopes = scope.split(' ');
+      } else if (resourceMetadata.scopes_supported) {
+        preferredScopes = resourceMetadata.scopes_supported;
+      }
+
+      const config = this.metadataToOAuthConfig(
+        authServerMetadata,
+        preferredScopes,
+      );
+      if (registrationUri) {
+        config.registrationUrl = registrationUri;
+      }
+      return config;
     }
 
     return null;

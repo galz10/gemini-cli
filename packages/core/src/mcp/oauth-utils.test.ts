@@ -352,15 +352,33 @@ describe('OAuthUtils', () => {
       const header =
         'Bearer realm="example", resource_metadata="https://example.com/.well-known/oauth-protected-resource"';
       const result = OAuthUtils.parseWWWAuthenticateHeader(header);
-      expect(result).toBe(
-        'https://example.com/.well-known/oauth-protected-resource',
-      );
+      expect(result).toEqual({
+        resourceMetadataUri:
+          'https://example.com/.well-known/oauth-protected-resource',
+        registrationUri: null,
+        scope: null,
+      });
     });
 
-    it('should return null when no resource metadata URI is found', () => {
+    it('should parse both resource metadata and scope', () => {
+      const header =
+        'Bearer realm="example", resource_metadata="https://example.com/res", scope="read write"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result).toEqual({
+        resourceMetadataUri: 'https://example.com/res',
+        registrationUri: null,
+        scope: 'read write',
+      });
+    });
+
+    it('should return nulls when no resource metadata URI is found', () => {
       const header = 'Bearer realm="example"';
       const result = OAuthUtils.parseWWWAuthenticateHeader(header);
-      expect(result).toBeNull();
+      expect(result).toEqual({
+        resourceMetadataUri: null,
+        registrationUri: null,
+        scope: null,
+      });
     });
   });
 
