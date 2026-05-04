@@ -418,13 +418,23 @@ export class OAuthUtils {
   ): boolean {
     const normalize = (resource: string): string => {
       try {
-        return this.buildResourceParameter(resource);
+        const url = new URL(resource);
+        return `${url.protocol}//${url.host}${url.pathname}`.replace(/\/$/, '');
       } catch {
-        return resource;
+        return resource.replace(/\/$/, '');
       }
     };
 
-    return normalize(discoveredResource) === normalize(expectedResource);
+    const disc = normalize(discoveredResource);
+    const exp = normalize(expectedResource);
+
+    if (disc === exp) {
+      return true;
+    }
+
+    // Prefix match per RFC 9728 section 3.1: the metadata document
+    // covers resources under its path prefix.
+    return exp.startsWith(disc + '/');
   }
 
   /**

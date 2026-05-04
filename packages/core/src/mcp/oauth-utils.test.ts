@@ -258,6 +258,36 @@ describe('OAuthUtils', () => {
       });
     });
 
+    it('should succeed when resource metadata is a prefix of server URL', async () => {
+      const mockResourceMetadataPrefix: OAuthProtectedResourceMetadata = {
+        resource: 'https://example.com/api',
+        authorization_servers: ['https://auth.example.com'],
+      };
+
+      mockFetch
+        // fetchProtectedResourceMetadata
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockResourceMetadataPrefix),
+        })
+        // discoverAuthorizationServerMetadata
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockAuthServerMetadata),
+        });
+
+      const config = await OAuthUtils.discoverOAuthConfig(
+        'https://example.com/api/mcp/sse',
+      );
+
+      expect(config).toEqual({
+        authorizationUrl: 'https://auth.example.com/authorize',
+        issuer: 'https://auth.example.com',
+        tokenUrl: 'https://auth.example.com/token',
+        scopes: ['read', 'write'],
+      });
+    });
+
     it('should throw error when resource metadata does not match server URL', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
