@@ -53,10 +53,11 @@ export const usePrivacySettings = (config: Config) => {
           dataCollectionOptIn: optIn,
         });
       } catch (e) {
-        setPrivacyState({
+        setPrivacyState((prev) => ({
+          ...prev,
           isLoading: false,
           error: e instanceof Error ? e.message : String(e),
-        });
+        }));
       }
     };
     // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -103,7 +104,7 @@ async function getRemoteDataCollectionOptIn(
   server: CodeAssistServer,
 ): Promise<boolean> {
   try {
-    const resp = await server.getCodeAssistGlobalUserSetting();
+    const resp = await server.getCodeAssistGlobalUserSetting(server.projectId);
     if (resp.freeTierDataCollectionOptin === undefined) {
       debugLogger.warn(
         'Warning: Code Assist API did not return freeTierDataCollectionOptin. Defaulting to true.',

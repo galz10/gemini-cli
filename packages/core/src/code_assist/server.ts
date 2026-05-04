@@ -317,9 +317,17 @@ export class CodeAssistServer implements ContentGenerator {
     );
   }
 
-  async getCodeAssistGlobalUserSetting(): Promise<CodeAssistGlobalUserSettingResponse> {
+  async getCodeAssistGlobalUserSetting(
+    projectId?: string,
+  ): Promise<CodeAssistGlobalUserSettingResponse> {
+    const params: Record<string, string> = {};
+    if (projectId) {
+      params['cloudaicompanionProject'] = projectId;
+    }
     return this.requestGet<CodeAssistGlobalUserSettingResponse>(
       'getCodeAssistGlobalUserSetting',
+      undefined,
+      params,
     );
   }
 
@@ -441,10 +449,12 @@ export class CodeAssistServer implements ContentGenerator {
   private async makeGetRequest<T>(
     url: string,
     signal?: AbortSignal,
+    params?: Record<string, string>,
   ): Promise<T> {
     const res = await this.client.request<T>({
       url,
       method: 'GET',
+      params,
       headers: {
         'Content-Type': 'application/json',
         ...this.httpOptions.headers,
@@ -455,8 +465,12 @@ export class CodeAssistServer implements ContentGenerator {
     return res.data;
   }
 
-  async requestGet<T>(method: string, signal?: AbortSignal): Promise<T> {
-    return this.makeGetRequest<T>(this.getMethodUrl(method), signal);
+  async requestGet<T>(
+    method: string,
+    signal?: AbortSignal,
+    params?: Record<string, string>,
+  ): Promise<T> {
+    return this.makeGetRequest<T>(this.getMethodUrl(method), signal, params);
   }
 
   async requestGetOperation<T>(name: string, signal?: AbortSignal): Promise<T> {
