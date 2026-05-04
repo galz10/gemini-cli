@@ -1055,8 +1055,27 @@ describe('oauth2', () => {
 
       it('should handle unexpected requests (like /favicon.ico) without crashing', async () => {
         const mockAuthUrl = 'https://example.com/auth';
+        let capturedState: string | undefined;
         const mockOAuth2Client = {
-          generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
+          generateAuthUrl: vi
+            .fn()
+            .mockImplementation((options: { state: string }) => {
+              capturedState = options.state;
+              return mockAuthUrl;
+            }),
+          getToken: vi.fn().mockResolvedValue({
+            tokens: {
+              access_token: 'test-access-token',
+              refresh_token: 'test-refresh-token',
+            },
+          }),
+          setCredentials: vi.fn().mockImplementation(function (
+            this: { credentials: Credentials },
+            creds: Credentials,
+          ) {
+            this.credentials = creds;
+          }),
+          credentials: {},
           on: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
@@ -1102,19 +1121,30 @@ describe('oauth2', () => {
           end: vi.fn(),
         } as unknown as http.ServerResponse;
 
-        await expect(async () => {
-          requestCallback(mockReq, mockRes);
-          await clientPromise;
-        }).rejects.toThrow(
-          'OAuth callback not received. Unexpected request: /favicon.ico',
-        );
-
-        // Assert that we correctly redirected to the failure page
-        expect(mockRes.writeHead).toHaveBeenCalledWith(301, {
-          Location:
-            'https://developers.google.com/gemini-code-assist/auth_failure_gemini',
-        });
+        // Handle favicon request - should NOT resolve or reject the promise
+        requestCallback(mockReq, mockRes);
+        expect(mockRes.writeHead).toHaveBeenCalledWith(404);
         expect(mockRes.end).toHaveBeenCalled();
+
+        // Simulate the actual callback
+        const mockReqCallback = {
+          url: `/oauth2callback?code=test-code&state=${capturedState}`,
+        } as http.IncomingMessage;
+        const mockResCallback = {
+          writeHead: vi.fn(),
+          end: vi.fn(),
+        } as unknown as http.ServerResponse;
+
+        requestCallback(mockReqCallback, mockResCallback);
+
+        const client = await clientPromise;
+        expect(client).toBe(mockOAuth2Client);
+        expect(mockResCallback.writeHead).toHaveBeenCalledWith(
+          301,
+          expect.objectContaining({
+            Location: expect.stringContaining('success'),
+          }),
+        );
       });
 
       it('should handle token exchange failure with descriptive error', async () => {

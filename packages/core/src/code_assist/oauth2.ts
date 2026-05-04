@@ -522,13 +522,9 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
     const server = http.createServer(async (req, res) => {
       try {
         if (req.url!.indexOf('/oauth2callback') === -1) {
-          res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
-          res.end();
-          reject(
-            new FatalAuthenticationError(
-              'OAuth callback not received. Unexpected request: ' + req.url,
-            ),
-          );
+          // Ignore non-callback requests (like /favicon.ico) instead of rejecting.
+          res.writeHead(404);
+          res.end('Not found');
           return;
         }
         // acquire the code from the querystring, and close the web server.
@@ -540,6 +536,9 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
           const errorCode = qs.get('error');
           const errorDescription =
             qs.get('error_description') || 'No additional details provided';
+
+          if (timeoutId) clearTimeout(timeoutId);
+          server.close();
           reject(
             new FatalAuthenticationError(
               `Google OAuth error: ${errorCode}. ${errorDescription}`,
@@ -548,6 +547,8 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
         } else if (qs.get('state') !== state) {
           res.end('State mismatch. Possible CSRF attack');
 
+          if (timeoutId) clearTimeout(timeoutId);
+          server.close();
           reject(
             new FatalAuthenticationError(
               'OAuth state mismatch. Possible CSRF attack or browser session issue.',
@@ -574,10 +575,16 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
 
             res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_SUCCESS_URL });
             res.end();
+
+            if (timeoutId) clearTimeout(timeoutId);
+            server.close();
             resolve();
           } catch (error) {
             res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
             res.end();
+
+            if (timeoutId) clearTimeout(timeoutId);
+            server.close();
             reject(
               new FatalAuthenticationError(
                 `Failed to exchange authorization code for tokens: ${getErrorMessage(error)}`,
@@ -585,6 +592,8 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
             );
           }
         } else {
+          if (timeoutId) clearTimeout(timeoutId);
+          server.close();
           reject(
             new FatalAuthenticationError(
               'No authorization code received from Google OAuth. Please try authenticating again.',
@@ -593,6 +602,8 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
         }
       } catch (e) {
         // Provide more specific error message for unexpected errors during OAuth flow
+        if (timeoutId) clearTimeout(timeoutId);
+        server.close();
         if (e instanceof FatalAuthenticationError) {
           reject(e);
         } else {
@@ -602,22 +613,36 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
             ),
           );
         }
-      } finally {
-        server.close();
       }
     });
 
     server.listen(port, host, () => {
-      // Server started successfully
+      debugLogger.log(
+        `Local callback server listening on http://${host}:${port}`,
+      );
     });
 
     server.on('error', (err) => {
+      clearTimeout(timeoutId);
       reject(
         new FatalAuthenticationError(
           `OAuth callback server error: ${getErrorMessage(err)}`,
         ),
       );
     });
+
+    // Add a 5-minute timeout for the authentication process
+    const timeoutId = setTimeout(
+      () => {
+        server.close();
+        reject(
+          new FatalAuthenticationError(
+            'Authentication timed out after 5 minutes. The browser tab may have gotten stuck in a loading state. Please try again or use NO_BROWSER=true for manual authentication.',
+          ),
+        );
+      },
+      5 * 60 * 1000,
+    );
   });
 
   return {
