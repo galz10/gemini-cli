@@ -95,7 +95,7 @@ export const useAuthCommand = (
       if (!authType) {
         if (process.env['GEMINI_API_KEY']) {
           onAuthError(
-            'Existing API key detected (GEMINI_API_KEY). Select "Gemini API Key" option to use it.',
+            'An API Key was detected from your environment. Choose "Gemini API Key" to use it, or select another method.',
           );
         } else {
           onAuthError('No authentication method selected.');

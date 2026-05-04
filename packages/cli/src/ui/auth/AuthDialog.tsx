@@ -224,6 +224,14 @@ export function AuthDialog({
             How would you like to authenticate for this project?
           </Text>
         </Box>
+        {process.env['GEMINI_API_KEY'] && (
+          <Box marginTop={1}>
+            <Text color={theme.text.secondary}>
+              An API Key was detected from your environment, but you can still
+              choose to sign in with Google.
+            </Text>
+          </Box>
+        )}
         <Box marginTop={1}>
           <RadioButtonSelect
             items={items}

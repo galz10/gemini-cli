@@ -181,7 +181,7 @@ describe('useAuth', () => {
       );
 
       expect(result.current.authError).toContain(
-        'Existing API key detected (GEMINI_API_KEY)',
+        'An API Key was detected from your environment',
       );
       expect(result.current.authState).toBe(AuthState.Updating);
     });
