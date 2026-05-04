@@ -206,20 +206,7 @@ export function getSecureSanitizationConfig(
   const allowed = [
     ...(baseConfig?.allowedEnvironmentVariables ?? []),
     ...(requestedConfig.allowedEnvironmentVariables ?? []),
-  ].filter((key) => {
-    const upperKey = key.toUpperCase();
-    // Never allow variables that are explicitly forbidden by name
-    if (NEVER_ALLOWED_ENVIRONMENT_VARIABLES.has(upperKey)) {
-      return false;
-    }
-    // Never allow variables that match sensitive name patterns
-    for (const pattern of NEVER_ALLOWED_NAME_PATTERNS) {
-      if (pattern.test(upperKey)) {
-        return false;
-      }
-    }
-    return true;
-  });
+  ];
 
   const blocked = [
     ...(baseConfig?.blockedEnvironmentVariables ?? []),

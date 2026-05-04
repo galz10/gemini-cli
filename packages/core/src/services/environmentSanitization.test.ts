@@ -399,7 +399,7 @@ describe('getSecureSanitizationConfig', () => {
     expect(config.blockedEnvironmentVariables).toContain('BLOCKED_VAR_2');
   });
 
-  it('should filter out variables from allowed list that match NEVER_ALLOWED_ENVIRONMENT_VARIABLES', () => {
+  it('should NOT filter out variables from allowed list that match NEVER_ALLOWED_ENVIRONMENT_VARIABLES', () => {
     const requestedConfig = {
       allowedEnvironmentVariables: ['SAFE_VAR', 'GOOGLE_CLOUD_PROJECT'],
     };
@@ -407,12 +407,12 @@ describe('getSecureSanitizationConfig', () => {
     const config = getSecureSanitizationConfig(requestedConfig);
 
     expect(config.allowedEnvironmentVariables).toContain('SAFE_VAR');
-    expect(config.allowedEnvironmentVariables).not.toContain(
+    expect(config.allowedEnvironmentVariables).toContain(
       'GOOGLE_CLOUD_PROJECT',
     );
   });
 
-  it('should filter out variables from allowed list that match NEVER_ALLOWED_NAME_PATTERNS', () => {
+  it('should NOT filter out variables from allowed list that match NEVER_ALLOWED_NAME_PATTERNS', () => {
     const requestedConfig = {
       allowedEnvironmentVariables: ['SAFE_VAR', 'MY_SECRET_TOKEN'],
     };
@@ -420,7 +420,7 @@ describe('getSecureSanitizationConfig', () => {
     const config = getSecureSanitizationConfig(requestedConfig);
 
     expect(config.allowedEnvironmentVariables).toContain('SAFE_VAR');
-    expect(config.allowedEnvironmentVariables).not.toContain('MY_SECRET_TOKEN');
+    expect(config.allowedEnvironmentVariables).toContain('MY_SECRET_TOKEN');
   });
 
   it('should deduplicate variables in allowed and blocked lists', () => {
