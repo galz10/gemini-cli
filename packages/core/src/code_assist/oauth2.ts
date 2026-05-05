@@ -101,6 +101,7 @@ const SIGN_IN_FAILURE_URL =
 export interface OauthWebLogin {
   authUrl: string;
   loginCompletePromise: Promise<void>;
+  cleanup: () => void;
 }
 
 const oauthClientPromises = new Map<AuthType, Promise<AuthClient>>();
@@ -375,6 +376,7 @@ async function initOauthClient(
         cancellationPromise,
       ]);
     } finally {
+      webLogin.cleanup();
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
@@ -518,8 +520,17 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
     state,
   });
 
+  let isClosed = false;
+  let server: http.Server;
+  const cleanup = () => {
+    if (server && !isClosed) {
+      server.close();
+      isClosed = true;
+    }
+  };
+
   const loginCompletePromise = new Promise<void>((resolve, reject) => {
-    const server = http.createServer(async (req, res) => {
+    server = http.createServer(async (req, res) => {
       try {
         if (req.url!.indexOf('/oauth2callback') === -1) {
           res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
@@ -603,7 +614,7 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
           );
         }
       } finally {
-        server.close();
+        cleanup();
       }
     });
 
@@ -618,11 +629,16 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
         ),
       );
     });
+  }).catch((e) => {
+    // Ensure cleanup is called if the promise rejects from server errors
+    cleanup();
+    throw e;
   });
 
   return {
     authUrl,
     loginCompletePromise,
+    cleanup,
   };
 }
 
