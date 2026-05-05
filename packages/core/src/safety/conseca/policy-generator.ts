@@ -58,6 +58,7 @@ Example JSON:
     *   **allow:** Required tools for the task.
     *   **deny:** Tools clearly outside the scope.
     *   **ask_user:** Destructive actions or ambiguity.
+    *   **Note on Trust:** If the workspace is marked as trusted ({{is_trusted}}), you should be more permissive with standard development actions (e.g. editing source files, running builds) while still blocking high-risk system modifications.
 
 2.  **Constraints:**
     *   Be specific! Restrict file paths, command arguments, etc.
@@ -66,6 +67,8 @@ Example JSON:
     *   Reference the user's prompt.
 
 User Prompt: "{{user_prompt}}"
+
+Workspace Trusted: {{is_trusted}}
 
 Trusted Tools (Context):
 {{trusted_content}}
@@ -127,6 +130,7 @@ export async function generatePolicy(
                 text: safeTemplateReplace(CONSECA_POLICY_GENERATION_PROMPT, {
                   user_prompt: userPrompt,
                   trusted_content: trustedContent,
+                  is_trusted: config.isTrustedFolder() ? 'Yes' : 'No',
                 }),
               },
             ],

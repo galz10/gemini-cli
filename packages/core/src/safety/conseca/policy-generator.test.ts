@@ -22,6 +22,7 @@ describe('policy_generator', () => {
 
     mockConfig = {
       getContentGenerator: vi.fn().mockReturnValue(mockContentGenerator),
+      isTrustedFolder: vi.fn().mockReturnValue(true),
     } as unknown as Config;
   });
 
@@ -112,5 +113,24 @@ describe('policy_generator', () => {
 
     // The trusted tools section SHOULD contain the secret data
     expect(promptText).toContain('Trusted Tools (Context):\nSECRET_DATA');
+
+    // Should contain the trust status
+    expect(promptText).toContain('Workspace Trusted: Yes');
+  });
+
+  it('should pass "No" for is_trusted when folder is not trusted', async () => {
+    vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(false);
+    mockContentGenerator.generateContent = vi.fn().mockResolvedValue({});
+
+    await generatePolicy('test prompt', 'trusted content', mockConfig);
+
+    const generateContentCall = vi.mocked(mockContentGenerator.generateContent)
+      .mock.calls[0];
+    const request = generateContentCall[0] as {
+      contents: Array<{ parts: Array<{ text: string }> }>;
+    };
+    const promptText = request.contents[0].parts[0].text;
+
+    expect(promptText).toContain('Workspace Trusted: No');
   });
 });

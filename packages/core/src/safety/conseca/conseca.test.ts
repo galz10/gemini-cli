@@ -185,6 +185,7 @@ describe('ConsecaSafetyChecker', () => {
       mockPolicy,
       input.toolCall,
       mockConfig,
+      undefined,
     );
     expect(result.decision).toBe(SafetyCheckDecision.ALLOW);
   });

@@ -77,6 +77,7 @@ export class ConsecaSafetyChecker implements InProcessChecker {
     }
 
     const userPrompt = this.extractUserPrompt(input);
+    const modelRationale = this.extractModelRationale(input);
     let trustedContent = '';
 
     const toolRegistry = this.context.toolRegistry;
@@ -106,6 +107,7 @@ export class ConsecaSafetyChecker implements InProcessChecker {
         this.currentPolicy,
         input.toolCall,
         this.context.config,
+        modelRationale ?? undefined,
       );
     }
 
@@ -160,6 +162,15 @@ export class ConsecaSafetyChecker implements InProcessChecker {
       return prompt;
     }
     debugLogger.debug(`[Conseca] extractUserPrompt failed.`);
+    return null;
+  }
+
+  private extractModelRationale(input: SafetyCheckInput): string | null {
+    const lastTurn = input.context.history?.turns.at(-1);
+    if (lastTurn?.model.text) {
+      return lastTurn.model.text;
+    }
+    debugLogger.debug(`[Conseca] extractModelRationale failed.`);
     return null;
   }
 

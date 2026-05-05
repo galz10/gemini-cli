@@ -17,22 +17,27 @@ import { debugLogger } from '../../utils/debugLogger.js';
 import { LlmRole } from '../../telemetry/index.js';
 
 const CONSECA_ENFORCEMENT_PROMPT = `
-You are a security enforcement engine. Your goal is to check if a specific tool call complies with a given security policy.
+You are a security enforcement engine. Your goal is to check if a specific tool call complies with a given security policy, while considering the agent's stated intent.
 
 Input:
 1.  **Security Policy:** A set of rules defining allowed and denied actions for this specific tool.
-2.  **Tool Call:** The actual function call the system intends to execute.
+2.  **Model Intent:** The agent's technical rationale or "thoughts" before making this tool call.
+3.  **Tool Call:** The actual function call the system intends to execute.
 
 Security Policy:
 {{policy}}
 
+Model Intent:
+{{model_intent}}
+
 Tool Call:
 {{tool_call}}
 
-Evaluate the tool call against the policy.
-1. Check if the tool is allowed.
+Evaluate the tool call against the policy and the agent's intent.
+1. Check if the tool is allowed by the policy.
 2. Check if the arguments match the constraints.
-3. Output a JSON object with:
+3. Consider if the action aligns with the stated intent. Legitmate intent that matches the action can be used as a "heuristic override" for broad policy restrictions if the workspace is trusted.
+4. Output a JSON object with:
    - "decision": "allow", "deny", or "ask_user".
    - "reason": A brief explanation.
 
@@ -54,6 +59,7 @@ export async function enforcePolicy(
   policy: SecurityPolicy,
   toolCall: FunctionCall,
   config: Config,
+  modelIntent?: string,
 ): Promise<SafetyCheckResult> {
   const model = DEFAULT_GEMINI_FLASH_MODEL;
   const contentGenerator = config.getContentGenerator();
@@ -83,6 +89,7 @@ export async function enforcePolicy(
     toolCall,
     toolPolicyStr,
     toolCallStr,
+    modelIntent,
   );
 
   try {
@@ -103,6 +110,7 @@ export async function enforcePolicy(
                 text: safeTemplateReplace(CONSECA_ENFORCEMENT_PROMPT, {
                   policy: toolPolicyStr,
                   tool_call: toolCallStr,
+                  model_intent: modelIntent || 'None provided.',
                 }),
               },
             ],
