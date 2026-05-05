@@ -21,9 +21,23 @@ export async function getConsentForOauth(prompt: string): Promise<boolean> {
 
   if (isHeadlessMode()) {
     return getOauthConsentNonInteractive(finalPrompt);
-  } else if (coreEvents.listenerCount(CoreEvent.ConsentRequest) > 0) {
+  }
+
+  // Wait for up to 10 seconds for the UI to be ready and listen for consent requests.
+  // This avoids a race condition during startup.
+  let attempts = 0;
+  while (
+    coreEvents.listenerCount(CoreEvent.ConsentRequest) === 0 &&
+    attempts < 20
+  ) {
+    await new Promise((f) => setTimeout(f, 500));
+    attempts++;
+  }
+
+  if (coreEvents.listenerCount(CoreEvent.ConsentRequest) > 0) {
     return getOauthConsentInteractive(finalPrompt);
   }
+
   throw new FatalAuthenticationError(
     'Authentication consent could not be obtained.\n' +
       'Please run Gemini CLI in an interactive terminal to authenticate, ' +
