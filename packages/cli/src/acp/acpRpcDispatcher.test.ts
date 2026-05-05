@@ -146,6 +146,7 @@ describe('GeminiAgent - RPC Dispatcher', () => {
   });
 
   it('should authenticate correctly', async () => {
+    mockSettings.merged.security.auth.selectedType = undefined;
     await agent.authenticate({
       methodId: AuthType.LOGIN_WITH_GOOGLE,
     });
@@ -163,7 +164,27 @@ describe('GeminiAgent - RPC Dispatcher', () => {
     );
   });
 
+  it('should NOT overwrite existing selectedType during authentication', async () => {
+    mockSettings.merged.security.auth.selectedType = AuthType.LOGIN_WITH_GOOGLE;
+    await agent.authenticate({
+      methodId: AuthType.USE_GEMINI,
+      _meta: {
+        'api-key': 'test-api-key',
+      },
+    } as unknown as acp.AuthenticateRequest);
+
+    expect(mockConfig.refreshAuth).toHaveBeenCalledWith(
+      AuthType.USE_GEMINI,
+      'test-api-key',
+      undefined,
+      undefined,
+    );
+    // Should NOT call setValue because selectedType was already set
+    expect(mockSettings.setValue).not.toHaveBeenCalled();
+  });
+
   it('should authenticate correctly with api-key in _meta', async () => {
+    mockSettings.merged.security.auth.selectedType = undefined;
     await agent.authenticate({
       methodId: AuthType.USE_GEMINI,
       _meta: {
@@ -185,6 +206,7 @@ describe('GeminiAgent - RPC Dispatcher', () => {
   });
 
   it('should authenticate correctly with gateway method', async () => {
+    mockSettings.merged.security.auth.selectedType = undefined;
     await agent.authenticate({
       methodId: AuthType.GATEWAY,
       _meta: {

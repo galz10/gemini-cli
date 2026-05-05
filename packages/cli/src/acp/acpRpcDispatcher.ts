@@ -159,11 +159,16 @@ export class GeminiAgent {
     } catch (e) {
       throw new acp.RequestError(-32000, getAcpErrorMessage(e));
     }
-    this.settings.setValue(
-      SettingScope.User,
-      'security.auth.selectedType',
-      method,
-    );
+    // Only persist the selected auth type if it's not already set.
+    // This prevents ACP-initiated auth from overwriting a user's durable setting
+    // (e.g. they usually use OAuth, but an IDE is using an API key via ACP).
+    if (!selectedAuthType) {
+      this.settings.setValue(
+        SettingScope.User,
+        'security.auth.selectedType',
+        method,
+      );
+    }
   }
 
   private getAuthDetails(): AuthDetails {
