@@ -161,13 +161,44 @@ async function _doSetupUser(
 
   let loadRes: LoadCodeAssistResponse;
   while (true) {
-    loadRes = await caServer.loadCodeAssist({
-      cloudaicompanionProject: projectId,
-      metadata: {
-        ...coreClientMetadata,
-        duetProject: projectId,
-      },
-    });
+    try {
+      loadRes = await caServer.loadCodeAssist({
+        cloudaicompanionProject: projectId,
+        metadata: {
+          ...coreClientMetadata,
+          duetProject: projectId,
+        },
+      });
+    } catch (e) {
+      // Issue 25617: If the Cloud Code Private API is disabled, not used, or inaccessible,
+      // allow the authentication flow to proceed with standard Gemini APIs.
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const isApiDisabled =
+        errorMessage.includes('cloudcode-pa.googleapis.com') ||
+        errorMessage.includes('not been used') ||
+        errorMessage.includes('disabled') ||
+        (typeof e === 'object' &&
+          !!e &&
+          'response' in e &&
+          typeof e.response === 'object' &&
+          !!e.response &&
+          'status' in e.response &&
+          e.response.status === 403);
+
+      if (isApiDisabled) {
+        debugLogger.warn(
+          'Cloud Code Private API is disabled or inaccessible. Falling back to standard Gemini APIs.',
+          e,
+        );
+        return {
+          projectId: projectId ?? 'default',
+          userTier: UserTierId.STANDARD,
+          userTierName: 'Standard',
+          hasOnboardedPreviously: true,
+        };
+      }
+      throw e;
+    }
 
     try {
       validateLoadCodeAssistResponse(loadRes);
