@@ -67,6 +67,7 @@ import {
   recordExitFail,
   ShellExecutionService,
   saveApiKey,
+  verifyApiKey,
   debugLogger,
   coreEvents,
   CoreEvent,
@@ -876,6 +877,12 @@ Logging in with Google... Restarting Gemini CLI to continue.
         onAuthError(null);
         if (!apiKey.trim()) {
           onAuthError('API key cannot be empty or whitespace only.');
+          return;
+        }
+
+        const verificationError = await verifyApiKey(apiKey);
+        if (verificationError) {
+          onAuthError(verificationError);
           return;
         }
 

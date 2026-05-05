@@ -32,6 +32,7 @@ import { AuthType } from '../core/contentGenerator.js';
 import readline from 'node:readline';
 import { Storage } from '../config/storage.js';
 import { OAuthCredentialStorage } from './oauth-credential-storage.js';
+import { clearApiKey } from '../core/apiKeyCredentialStorage.js';
 import { FORCE_ENCRYPTED_FILE_ENV_VAR } from '../mcp/token-storage/index.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import {
@@ -701,6 +702,8 @@ export async function clearCachedCredentialFile() {
     } else {
       await fs.rm(Storage.getOAuthCredsPath(), { force: true });
     }
+    // Clear API keys as well
+    await clearApiKey();
     // Clear the Google Account ID cache when credentials are cleared
     await userAccountManager.clearCachedGoogleAccount();
     // Clear the in-memory OAuth client cache to force re-authentication

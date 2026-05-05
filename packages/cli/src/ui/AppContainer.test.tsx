@@ -85,6 +85,8 @@ vi.mock('@google/gemini-cli-core', async (importOriginal) => {
     })),
     enableMouseEvents: vi.fn(),
     disableMouseEvents: vi.fn(),
+    saveApiKey: vi.fn().mockResolvedValue(undefined),
+    verifyApiKey: vi.fn().mockResolvedValue(null),
     FileDiscoveryService: vi.fn().mockImplementation(() => ({
       initialize: vi.fn(),
     })),
@@ -1359,6 +1361,47 @@ describe('AppContainer State Management', () => {
         capturedUIActions.handleProQuotaChoice('retry_later');
       });
       expect(mockHandler).toHaveBeenCalledWith('retry_later');
+      unmount();
+    });
+  });
+
+  describe('API Key Authentication', () => {
+    it('verifies the API key before saving it', async () => {
+      const { verifyApiKey, saveApiKey } = await import(
+        '@google/gemini-cli-core'
+      );
+      const mockOnAuthError = vi.fn();
+
+      mockedUseAuthCommand.mockReturnValue({
+        authState: 'awaiting_api_key_input',
+        setAuthState: vi.fn(),
+        authError: null,
+        onAuthError: mockOnAuthError,
+      });
+
+      const { unmount } = await act(async () => renderAppContainer());
+
+      // Mock verification failure first
+      vi.mocked(verifyApiKey).mockResolvedValueOnce('Invalid key error');
+
+      await act(async () => {
+        await capturedUIActions.handleApiKeySubmit('test-key');
+      });
+
+      expect(verifyApiKey).toHaveBeenCalledWith('test-key');
+      expect(mockOnAuthError).toHaveBeenCalledWith('Invalid key error');
+      expect(saveApiKey).not.toHaveBeenCalled();
+
+      // Mock verification success
+      vi.mocked(verifyApiKey).mockResolvedValueOnce(null);
+
+      await act(async () => {
+        await capturedUIActions.handleApiKeySubmit('valid-key');
+      });
+
+      expect(verifyApiKey).toHaveBeenCalledWith('valid-key');
+      expect(saveApiKey).toHaveBeenCalledWith('valid-key');
+
       unmount();
     });
   });
