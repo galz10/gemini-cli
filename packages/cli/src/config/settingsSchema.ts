@@ -1939,6 +1939,34 @@ const SETTINGS_SCHEMA = {
           },
         },
       },
+      network: {
+        type: 'object',
+        label: 'Network',
+        category: 'Security',
+        requiresRestart: true,
+        default: {},
+        description: 'Network and proxy security settings.',
+        properties: {
+          preferIPv4: {
+            type: 'boolean',
+            label: 'Prefer IPv4',
+            category: 'Security',
+            requiresRestart: true,
+            default: false,
+            description:
+              'When enabled, forces DNS resolution to prefer IPv4 over IPv6. Useful for certain VPN and proxy configurations.',
+          },
+          proxyCA: {
+            type: 'string',
+            label: 'Proxy CA Certificate',
+            category: 'Security',
+            requiresRestart: true,
+            default: undefined as string | undefined,
+            description:
+              'Path to a custom CA certificate (PEM format) to be used when connecting through an intercepting proxy.',
+          },
+        },
+      },
       auth: {
         type: 'object',
         label: 'Authentication',

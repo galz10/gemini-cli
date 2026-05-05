@@ -389,7 +389,9 @@ export async function main() {
   consolePatcher.patch();
 
   dns.setDefaultResultOrder(
-    validateDnsResolutionOrder(settings.merged.advanced.dnsResolutionOrder),
+    settings.merged.security.network?.preferIPv4
+      ? 'ipv4first'
+      : validateDnsResolutionOrder(settings.merged.advanced.dnsResolutionOrder),
   );
 
   // Set a default auth type if one isn't set or is set to a legacy type

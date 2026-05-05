@@ -31,6 +31,7 @@ export class PrivateIpError extends Error {
 let defaultHeadersTimeout = 60000; // 60 seconds
 const defaultBodyTimeout = 300000; // 5 minutes
 let currentProxy: string | undefined = undefined;
+let currentProxyCA: string | Buffer | undefined = undefined;
 
 // Configure default global dispatcher with higher timeouts
 setGlobalDispatcher(
@@ -48,15 +49,25 @@ export function updateGlobalFetchTimeouts(timeoutMs: number) {
   }
   defaultHeadersTimeout = timeoutMs;
   // We keep body timeout high for LLM streaming responses
+  refreshGlobalDispatcher();
+}
+
+function refreshGlobalDispatcher() {
+  const options = {
+    headersTimeout: defaultHeadersTimeout,
+    bodyTimeout: defaultBodyTimeout,
+    connect: currentProxyCA ? { ca: currentProxyCA } : undefined,
+  };
+
   if (currentProxy) {
-    setGlobalProxy(currentProxy);
-  } else {
     setGlobalDispatcher(
-      new Agent({
-        headersTimeout: defaultHeadersTimeout,
-        bodyTimeout: defaultBodyTimeout,
+      new ProxyAgent({
+        uri: currentProxy,
+        ...options,
       }),
     );
+  } else {
+    setGlobalDispatcher(new Agent(options));
   }
 }
 
@@ -213,11 +224,10 @@ export async function fetchWithTimeout(
 
 export function setGlobalProxy(proxy: string) {
   currentProxy = proxy;
-  setGlobalDispatcher(
-    new ProxyAgent({
-      uri: proxy,
-      headersTimeout: defaultHeadersTimeout,
-      bodyTimeout: defaultBodyTimeout,
-    }),
-  );
+  refreshGlobalDispatcher();
+}
+
+export function setGlobalProxyCA(ca: string | Buffer) {
+  currentProxyCA = ca;
+  refreshGlobalDispatcher();
 }

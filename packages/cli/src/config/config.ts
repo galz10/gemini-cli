@@ -1130,6 +1130,7 @@ export async function loadCliConfig(
       };
     },
     enableConseca: settings.security?.enableConseca,
+    proxyCA: settings.security?.network?.proxyCA,
   });
 }
 

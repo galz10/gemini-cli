@@ -648,6 +648,7 @@ export interface ConfigParameters {
   allowedEnvironmentVariables?: string[];
   blockedEnvironmentVariables?: string[];
   enableEnvironmentVariableRedaction?: boolean;
+  proxyCA?: string;
   noBrowser?: boolean;
   summarizeToolOutput?: Record<string, SummarizeToolOutputSettings>;
   folderTrust?: boolean;
@@ -816,6 +817,7 @@ export class Config implements McpContext, AgentLoopContext {
   private gitService: GitService | undefined = undefined;
   private readonly checkpointing: boolean;
   private readonly proxy: string | undefined;
+  private readonly proxyCA: string | undefined;
   private readonly cwd: string;
   private readonly bugCommand: BugCommandSettings | undefined;
   private model: string;
@@ -1109,6 +1111,7 @@ export class Config implements McpContext, AgentLoopContext {
     this.proxy = params.proxy;
     this.cwd = params.cwd ?? process.cwd();
     this.fileDiscoveryService = params.fileDiscoveryService ?? null;
+    this.proxyCA = params.proxyCA;
     this.bugCommand = params.bugCommand;
     this.model = params.model;
     this.disableLoopDetection = params.disableLoopDetection ?? false;
@@ -2902,6 +2905,10 @@ export class Config implements McpContext, AgentLoopContext {
 
   getProxy(): string | undefined {
     return this.proxy;
+  }
+
+  getProxyCA(): string | undefined {
+    return this.proxyCA;
   }
 
   getWorkingDir(): string {

@@ -14,10 +14,12 @@ import {
   type EmbedContentParameters,
 } from '@google/genai';
 import * as os from 'node:os';
+import * as fs from 'node:fs';
 import { createCodeAssistContentGenerator } from '../code_assist/codeAssist.js';
 import { isCloudShell } from '../ide/detect-ide.js';
 import type { Config } from '../config/config.js';
 import { loadApiKey } from './apiKeyCredentialStorage.js';
+import { debugLogger } from '../utils/debugLogger.js';
 
 import type { UserTierId, GeminiUserTier } from '../code_assist/types.js';
 import { LoggingContentGenerator } from './loggingContentGenerator.js';
@@ -97,6 +99,7 @@ export type ContentGeneratorConfig = {
   vertexai?: boolean;
   authType?: AuthType;
   proxy?: string;
+  proxyCA?: string;
   baseUrl?: string;
   customHeaders?: Record<string, string>;
   vertexAiRouting?: VertexAiRoutingConfig;
@@ -145,6 +148,7 @@ export async function createContentGeneratorConfig(
   const contentGeneratorConfig: ContentGeneratorConfig = {
     authType,
     proxy: config?.getProxy(),
+    proxyCA: config?.getProxyCA(),
     baseUrl,
     customHeaders,
     vertexAiRouting,
@@ -198,6 +202,21 @@ export async function createContentGenerator(
       return new LoggingContentGenerator(fakeGenerator, gcConfig);
     }
     const version = await getVersion();
+
+    if (config.proxyCA) {
+      try {
+        const ca = fs.readFileSync(config.proxyCA);
+        const { setGlobalProxyCA } = await import('../utils/fetch.js');
+        setGlobalProxyCA(ca);
+        debugLogger.log(`Using custom proxy CA from: ${config.proxyCA}`);
+      } catch (error) {
+        debugLogger.error(
+          `Failed to read proxy CA from ${config.proxyCA}:`,
+          error,
+        );
+      }
+    }
+
     const model = resolveModel(
       gcConfig.getModel(),
       config.authType === AuthType.USE_GEMINI ||
