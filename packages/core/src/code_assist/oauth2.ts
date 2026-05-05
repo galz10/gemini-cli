@@ -752,7 +752,24 @@ async function cacheCredentials(credentials: Credentials) {
   const filePath = Storage.getOAuthCredsPath();
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  const credString = JSON.stringify(credentials, null, 2);
+  let existingCredentials: Credentials = {};
+  try {
+    const existingContent = await fs.readFile(filePath, 'utf-8');
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    existingCredentials = JSON.parse(existingContent);
+  } catch {
+    // Ignore read/parse errors, start with empty
+  }
+
+  // Merge: prioritize new fields, but keep old refresh_token if missing in new
+  const mergedCredentials: Credentials = {
+    ...existingCredentials,
+    ...credentials,
+    refresh_token:
+      credentials.refresh_token || existingCredentials.refresh_token,
+  };
+
+  const credString = JSON.stringify(mergedCredentials, null, 2);
   await fs.writeFile(filePath, credString, { mode: 0o600 });
   try {
     await fs.chmod(filePath, 0o600);
