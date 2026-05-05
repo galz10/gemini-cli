@@ -265,7 +265,13 @@ export class GeminiClient {
 
   private getContentGeneratorOrFail(): ContentGenerator {
     if (!this.config.getContentGenerator()) {
-      throw new Error('Content generator not initialized');
+      throw new Error(
+        'Content generator not initialized. This can happen if authentication failed or your account is not ready.\n' +
+          'Troubleshooting steps:\n' +
+          '1. Ensure you have completed age verification for your Google account (https://myaccount.google.com/age-verification).\n' +
+          '2. Run `gemini login` again to refresh your credentials.\n' +
+          '3. If using an API key, verify it is valid in AI Studio (https://aistudio.google.com/).',
+      );
     }
     return this.config.getContentGenerator();
   }

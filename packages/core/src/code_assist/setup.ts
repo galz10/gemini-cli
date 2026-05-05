@@ -314,7 +314,13 @@ function getOnboardTier(res: LoadCodeAssistResponse): GeminiUserTier {
 
 function validateLoadCodeAssistResponse(res: LoadCodeAssistResponse): void {
   if (!res) {
-    throw new Error('LoadCodeAssist returned empty response');
+    throw new Error(
+      'LoadCodeAssist returned empty response. This usually indicates a problem with your Google Cloud project or account permissions.\n' +
+        'Troubleshooting steps:\n' +
+        '1. Ensure you have enabled the Gemini for Google Cloud API in your project.\n' +
+        '2. Verify that your account has the necessary IAM permissions (e.g. Cloud AI Companion User).\n' +
+        '3. Check if your account requires age verification (https://myaccount.google.com/age-verification).',
+    );
   }
   if (
     !res.currentTier &&
