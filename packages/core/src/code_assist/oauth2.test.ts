@@ -30,7 +30,7 @@ import { UserAccountManager } from '../utils/userAccountManager.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import http from 'node:http';
-import open from 'open';
+import { openBrowserSecurely } from '../utils/secure-browser-launcher.js';
 import crypto from 'node:crypto';
 import * as os from 'node:os';
 import { AuthType } from '../core/contentGenerator.js';
@@ -66,7 +66,9 @@ vi.mock('../utils/paths.js', async (importOriginal) => {
 
 vi.mock('google-auth-library');
 vi.mock('http');
-vi.mock('open');
+vi.mock('../utils/secure-browser-launcher.js', () => ({
+  openBrowserSecurely: vi.fn(),
+}));
 vi.mock('crypto');
 vi.mock('node:readline');
 vi.mock('../utils/headless.js', () => ({
@@ -179,8 +181,8 @@ describe('oauth2', () => {
       vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
       vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-      vi.mocked(open).mockImplementation(
-        async () => ({ on: vi.fn() }) as never,
+      vi.mocked(openBrowserSecurely).mockImplementation(
+        async () => ({ on: vi.fn() }) as unknown as ChildProcess,
       );
 
       // Mock the UserInfo API response
@@ -247,7 +249,7 @@ describe('oauth2', () => {
       const client = await clientPromise;
       expect(client).toBe(mockOAuth2Client);
 
-      expect(open).toHaveBeenCalledWith(mockAuthUrl);
+      expect(openBrowserSecurely).toHaveBeenCalledWith(mockAuthUrl);
       expect(mockGetToken).toHaveBeenCalledWith({
         code: mockCode,
         redirect_uri: `http://127.0.0.1:${capturedPort}/oauth2callback`,
@@ -810,7 +812,7 @@ describe('oauth2', () => {
     describe('error handling', () => {
       it('should handle browser launch failure with FatalAuthenticationError', async () => {
         const mockError = new Error('Browser launch failed');
-        (open as Mock).mockRejectedValue(mockError);
+        vi.mocked(openBrowserSecurely).mockRejectedValue(mockError);
 
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
@@ -831,8 +833,8 @@ describe('oauth2', () => {
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         const mockHttpServer = {
@@ -886,8 +888,8 @@ describe('oauth2', () => {
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
         vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         let requestCallback!: http.RequestListener;
@@ -947,8 +949,8 @@ describe('oauth2', () => {
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         let requestCallback!: http.RequestListener;
@@ -1004,8 +1006,8 @@ describe('oauth2', () => {
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         let requestCallback!: http.RequestListener;
@@ -1061,8 +1063,8 @@ describe('oauth2', () => {
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         let requestCallback!: http.RequestListener;
@@ -1132,8 +1134,8 @@ describe('oauth2', () => {
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
         vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         let requestCallback!: http.RequestListener;
@@ -1206,8 +1208,8 @@ describe('oauth2', () => {
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
         vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         // Mock fetch to fail
@@ -1331,8 +1333,8 @@ describe('oauth2', () => {
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
         vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         // Mock createServer to return a server that doesn't do anything (keeps promise pending)
@@ -1396,8 +1398,8 @@ describe('oauth2', () => {
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
         vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         const mockHttpServer = {
@@ -1478,8 +1480,8 @@ describe('oauth2', () => {
               on: vi.fn(),
             }) as unknown as OAuth2Client,
         );
-        vi.mocked(open).mockImplementation(
-          async () => ({ on: vi.fn() }) as never,
+        vi.mocked(openBrowserSecurely).mockImplementation(
+          async () => ({ on: vi.fn() }) as unknown as ChildProcess,
         );
 
         const clientPromise = getOauthClient(
@@ -1663,8 +1665,8 @@ describe('oauth2', () => {
       vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
       vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
-      vi.mocked(open).mockImplementation(
-        async () => ({ on: vi.fn() }) as never,
+      vi.mocked(openBrowserSecurely).mockImplementation(
+        async () => ({ on: vi.fn() }) as unknown as ChildProcess,
       );
 
       (global.fetch as Mock).mockResolvedValue({

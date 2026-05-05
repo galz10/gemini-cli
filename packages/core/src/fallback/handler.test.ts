@@ -14,6 +14,7 @@ import {
   type MockInstance,
   afterEach,
 } from 'vitest';
+import { EventEmitter } from 'node:events';
 import { handleFallback } from './handler.js';
 import type { Config } from '../config/config.js';
 import type { ModelAvailabilityService } from '../availability/modelAvailabilityService.js';
@@ -249,7 +250,9 @@ describe('handleFallback', () => {
 
     it('should launch upgrade flow and avoid fallback mode when handler returns "upgrade"', async () => {
       policyHandler.mockResolvedValue('upgrade');
-      vi.mocked(openBrowserSecurely).mockResolvedValue(undefined);
+      vi.mocked(openBrowserSecurely).mockResolvedValue(
+        new EventEmitter() as unknown as ChildProcess,
+      );
 
       const result = await handleFallback(
         policyConfig,

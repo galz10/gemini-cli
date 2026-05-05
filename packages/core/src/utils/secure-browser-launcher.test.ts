@@ -6,22 +6,25 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { openBrowserSecurely } from './secure-browser-launcher.js';
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 
-// Create mock function using vi.hoisted
-const mockExecFile = vi.hoisted(() => vi.fn());
-
-// Mock modules
-vi.mock('node:child_process');
-vi.mock('node:util', () => ({
-  promisify: () => mockExecFile,
+// Mock child_process
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(),
 }));
 
 describe('secure-browser-launcher', () => {
   let originalPlatform: PropertyDescriptor | undefined;
+  const mockSpawn = vi.mocked(spawn);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockExecFile.mockResolvedValue({ stdout: '', stderr: '' });
+    mockSpawn.mockImplementation(() => {
+      const cp = new EventEmitter() as unknown as ChildProcess;
+      cp.unref = vi.fn();
+      return cp;
+    });
     originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
   });
 
@@ -42,7 +45,7 @@ describe('secure-browser-launcher', () => {
     it('should allow valid HTTP URLs', async () => {
       setPlatform('darwin');
       await openBrowserSecurely('http://example.com');
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'open',
         ['http://example.com'],
         expect.any(Object),
@@ -52,7 +55,7 @@ describe('secure-browser-launcher', () => {
     it('should allow valid HTTPS URLs', async () => {
       setPlatform('darwin');
       await openBrowserSecurely('https://example.com');
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'open',
         ['https://example.com'],
         expect.any(Object),
@@ -101,8 +104,8 @@ describe('secure-browser-launcher', () => {
 
       await openBrowserSecurely(maliciousUrl);
 
-      // Verify that execFile was called (not exec) and the URL is passed safely
-      expect(mockExecFile).toHaveBeenCalledWith(
+      // Verify that spawn was called (not exec) and the URL is passed safely
+      expect(mockSpawn).toHaveBeenCalledWith(
         'powershell.exe',
         [
           '-NoProfile',
@@ -131,7 +134,7 @@ describe('secure-browser-launcher', () => {
       for (const url of urlsWithSpecialChars) {
         await openBrowserSecurely(url);
         // Verify the URL is passed as an argument, not interpreted by shell
-        expect(mockExecFile).toHaveBeenCalledWith(
+        expect(mockSpawn).toHaveBeenCalledWith(
           'open',
           [url],
           expect.any(Object),
@@ -147,7 +150,7 @@ describe('secure-browser-launcher', () => {
       await openBrowserSecurely(urlWithSingleQuotes);
 
       // Verify that single quotes are escaped by doubling them
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'powershell.exe',
         [
           '-NoProfile',
@@ -166,7 +169,7 @@ describe('secure-browser-launcher', () => {
     it('should use correct command on macOS', async () => {
       setPlatform('darwin');
       await openBrowserSecurely('https://example.com');
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'open',
         ['https://example.com'],
         expect.any(Object),
@@ -176,7 +179,7 @@ describe('secure-browser-launcher', () => {
     it('should use PowerShell on Windows', async () => {
       setPlatform('win32');
       await openBrowserSecurely('https://example.com');
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'powershell.exe',
         expect.arrayContaining([
           '-Command',
@@ -189,7 +192,7 @@ describe('secure-browser-launcher', () => {
     it('should use xdg-open on Linux', async () => {
       setPlatform('linux');
       await openBrowserSecurely('https://example.com');
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(mockSpawn).toHaveBeenCalledWith(
         'xdg-open',
         ['https://example.com'],
         expect.any(Object),
@@ -207,7 +210,9 @@ describe('secure-browser-launcher', () => {
   describe('Error handling', () => {
     it('should handle browser launch failures gracefully', async () => {
       setPlatform('darwin');
-      mockExecFile.mockRejectedValueOnce(new Error('Command not found'));
+      mockSpawn.mockImplementationOnce(() => {
+        throw new Error('Command not found');
+      });
 
       await expect(openBrowserSecurely('https://example.com')).rejects.toThrow(
         'Failed to open browser',
@@ -218,20 +223,26 @@ describe('secure-browser-launcher', () => {
       setPlatform('linux');
 
       // First call to xdg-open fails
-      mockExecFile.mockRejectedValueOnce(new Error('Command not found'));
+      mockSpawn.mockImplementationOnce(() => {
+        throw new Error('Command not found');
+      });
       // Second call to gnome-open succeeds
-      mockExecFile.mockResolvedValueOnce({ stdout: '', stderr: '' });
+      mockSpawn.mockImplementationOnce(() => {
+        const cp = new EventEmitter() as unknown as ChildProcess;
+        cp.unref = vi.fn();
+        return cp;
+      });
 
       await openBrowserSecurely('https://example.com');
 
-      expect(mockExecFile).toHaveBeenCalledTimes(2);
-      expect(mockExecFile).toHaveBeenNthCalledWith(
+      expect(mockSpawn).toHaveBeenCalledTimes(2);
+      expect(mockSpawn).toHaveBeenNthCalledWith(
         1,
         'xdg-open',
         ['https://example.com'],
         expect.any(Object),
       );
-      expect(mockExecFile).toHaveBeenNthCalledWith(
+      expect(mockSpawn).toHaveBeenNthCalledWith(
         2,
         'gnome-open',
         ['https://example.com'],

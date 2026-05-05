@@ -4,12 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { platform } from 'node:os';
 import { URL } from 'node:url';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Validates that a URL is safe to open in a browser.
@@ -45,13 +42,14 @@ function validateUrl(url: string): void {
  * Opens a URL in the default browser using platform-specific commands.
  * This implementation avoids shell injection vulnerabilities by:
  * 1. Validating the URL to ensure it's HTTP/HTTPS only
- * 2. Using execFile instead of exec to avoid shell interpretation
+ * 2. Using spawn instead of exec to avoid shell interpretation
  * 3. Passing the URL as an argument rather than constructing a command string
  *
  * @param url The URL to open
+ * @returns The child process of the browser
  * @throws Error if the URL is invalid or if opening the browser fails
  */
-export async function openBrowserSecurely(url: string): Promise<void> {
+export async function openBrowserSecurely(url: string): Promise<ChildProcess> {
   // Validate the URL first
   validateUrl(url);
 
@@ -93,7 +91,7 @@ export async function openBrowserSecurely(url: string): Promise<void> {
       throw new Error(`Unsupported platform: ${platformName}`);
   }
 
-  const options: Record<string, unknown> = {
+  const options = {
     // Don't inherit parent's environment to avoid potential issues
     env: {
       ...process.env,
@@ -102,11 +100,13 @@ export async function openBrowserSecurely(url: string): Promise<void> {
     },
     // Detach the browser process so it doesn't block
     detached: true,
-    stdio: 'ignore',
+    stdio: 'ignore' as const,
   };
 
   try {
-    await execFileAsync(command, args, options);
+    const childProcess = spawn(command, args, options);
+    childProcess.unref();
+    return childProcess;
   } catch (error) {
     // For Linux, try fallback commands if xdg-open fails
     if (
@@ -125,8 +125,9 @@ export async function openBrowserSecurely(url: string): Promise<void> {
 
       for (const fallbackCommand of fallbackCommands) {
         try {
-          await execFileAsync(fallbackCommand, [url], options);
-          return; // Success!
+          const childProcess = spawn(fallbackCommand, [url], options);
+          childProcess.unref();
+          return childProcess; // Success!
         } catch {
           // Try next command
           continue;
