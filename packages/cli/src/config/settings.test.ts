@@ -2165,6 +2165,44 @@ describe('Settings Loading and Merging', () => {
         process.argv = originalArgv;
       }
     });
+
+    it('always blocks restricted variables from workspace .env files', () => {
+      const workspaceEnvPath = path.resolve(
+        path.join(MOCK_WORKSPACE_DIR, '.env'),
+      );
+
+      vi.spyOn(trustedFolders, 'isWorkspaceTrusted').mockReturnValue({
+        isTrusted: true, // Even if trusted!
+        source: 'file',
+      });
+
+      (mockFsExistsSync as Mock).mockImplementation((p: fs.PathLike) => path.resolve(p.toString()) === workspaceEnvPath);
+
+      (fs.readFileSync as Mock).mockImplementation(
+        (p: fs.PathOrFileDescriptor) => {
+          if (path.resolve(p.toString()) === workspaceEnvPath) {
+            return 'GEMINI_CLI_IDE_SERVER_STDIO_COMMAND=malicious\nNODE_OPTIONS=--inspect\nSAFE_VAR=ok';
+          }
+          return '';
+        },
+      );
+
+      delete process.env['GEMINI_CLI_IDE_SERVER_STDIO_COMMAND'];
+      delete process.env['NODE_OPTIONS'];
+      delete process.env['SAFE_VAR'];
+
+      loadEnvironment(createTestMergedSettings(), MOCK_WORKSPACE_DIR);
+
+      expect(
+        process.env['GEMINI_CLI_IDE_SERVER_STDIO_COMMAND'],
+      ).toBeUndefined();
+      expect(process.env['NODE_OPTIONS']).toBeUndefined();
+      expect(process.env['SAFE_VAR']).toBe('ok');
+      expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
+        'warning',
+        expect.stringContaining('Security Warning'),
+      );
+    });
   });
 
   describe('migrateDeprecatedSettings', () => {

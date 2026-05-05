@@ -86,6 +86,23 @@ export const DEFAULT_EXCLUDED_ENV_VARS = [
   'GEMINI_CLI_IDE_SERVER_STDIO_ARGS',
 ];
 
+/**
+ * These variables are NEVER allowed to be overridden by a workspace-level .env file
+ * due to security risks (e.g., RCE).
+ */
+export const RESTRICTED_WORKSPACE_ENV_VARS = new Set([
+  'GEMINI_CLI_IDE_SERVER_STDIO_COMMAND',
+  'GEMINI_CLI_IDE_SERVER_STDIO_ARGS',
+  'NODE_OPTIONS',
+  'NODE_PATH',
+  'PAGER',
+  'EDITOR',
+  'VISUAL',
+  'SHELL',
+  'LD_PRELOAD',
+  'DYLD_INSERT_LIBRARIES',
+]);
+
 const AUTH_ENV_VAR_WHITELIST = [
   'GEMINI_API_KEY',
   'GOOGLE_API_KEY',
@@ -647,8 +664,18 @@ export function loadEnvironment(
           }
 
           // If it's a project .env file, skip loading excluded variables.
-          if (isProjectEnvFile && excludedVars.includes(key)) {
-            continue;
+          if (isProjectEnvFile) {
+            if (RESTRICTED_WORKSPACE_ENV_VARS.has(key)) {
+              coreEvents.emitFeedback(
+                'warning',
+                `Security Warning: Workspace .env file attempted to set restricted environment variable "${key}". This was blocked for your safety.`,
+              );
+              continue;
+            }
+
+            if (excludedVars.includes(key)) {
+              continue;
+            }
           }
 
           // Load variable only if it's not already set in the environment.
