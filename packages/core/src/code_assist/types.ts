@@ -32,7 +32,8 @@ export type ClientMetadataPlatform =
   | 'DARWIN_ARM64'
   | 'LINUX_AMD64'
   | 'LINUX_ARM64'
-  | 'WINDOWS_AMD64';
+  | 'WINDOWS_AMD64'
+  | 'CLOUD_SHELL';
 export type ClientMetadataPluginType =
   | 'PLUGIN_UNSPECIFIED'
   | 'CLOUD_CODE'
@@ -151,6 +152,7 @@ export const UserTierId = {
   FREE: 'free-tier',
   LEGACY: 'legacy-tier',
   STANDARD: 'standard-tier',
+  PRO: 'google-ai-pro-tier',
 } as const;
 
 export type UserTierId = (typeof UserTierId)[keyof typeof UserTierId] | string;

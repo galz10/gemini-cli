@@ -27,6 +27,8 @@ import {
   OnboardingSuccessEvent,
 } from '../telemetry/index.js';
 
+import { isCloudShell } from '../ide/detect-ide.js';
+
 export class ProjectIdRequiredError extends Error {
   constructor() {
     super(
@@ -151,9 +153,11 @@ async function _doSetupUser(
     undefined,
     undefined,
   );
+
+  const inCloudShell = isCloudShell();
   const coreClientMetadata: ClientMetadata = {
-    ideType: 'IDE_UNSPECIFIED',
-    platform: 'PLATFORM_UNSPECIFIED',
+    ideType: inCloudShell ? 'CLOUD_SHELL' : 'GEMINI_CLI',
+    platform: inCloudShell ? 'CLOUD_SHELL' : 'PLATFORM_UNSPECIFIED',
     pluginType: 'GEMINI',
   };
 
@@ -161,6 +165,39 @@ async function _doSetupUser(
 
   let loadRes: LoadCodeAssistResponse;
   while (true) {
+    // If we are in Cloud Shell, we first try to fetch entitlements WITHOUT a project ID
+    // to see if the user has a personal "Google AI Pro" plan. This avoids being
+    // restricted to the environment's default standard tier (e.g. cloudshell-gca).
+    if (inCloudShell && projectId) {
+      try {
+        const personalRes = await caServer.loadCodeAssist({
+          cloudaicompanionProject: undefined,
+          metadata: {
+            ...coreClientMetadata,
+            duetProject: undefined,
+          },
+        });
+        if (personalRes.paidTier?.id === UserTierId.PRO) {
+          debugLogger.log(
+            'Detected personal Google AI Pro plan in Cloud Shell.',
+          );
+          loadRes = personalRes;
+          // Use a dummy project ID if none returned, or the environment one if appropriate.
+          // For PRO models, the project ID is often ignored if authenticated correctly.
+          if (!loadRes.cloudaicompanionProject) {
+            loadRes.cloudaicompanionProject = projectId;
+          }
+          break;
+        }
+      } catch (e) {
+        debugLogger.debug(
+          'Failed to fetch personal entitlements in Cloud Shell:',
+          e,
+        );
+        // Fallback to standard flow
+      }
+    }
+
     loadRes = await caServer.loadCodeAssist({
       cloudaicompanionProject: projectId,
       metadata: {
