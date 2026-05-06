@@ -329,20 +329,53 @@ export class OAuthUtils {
    */
   static parseWWWAuthenticateHeader(header: string): {
     resourceMetadataUri: string | null;
-    registrationUri: string | null;
+    registrationUrl: string | null;
     scope: string | null;
   } {
-    // Parse Bearer realm, resource_metadata, registration_uri, and scope
-    const resourceMetadataMatch = header.match(/resource_metadata="([^"]+)"/);
-    const registrationUriMatch = header.match(/registration_uri="([^"]+)"/);
-    const scopeMatch = header.match(/scope="([^"]+)"/);
+    // Find the Bearer challenge
+    const bearerMatch = header.match(/\bBearer\b\s+(.*)/i);
+    if (!bearerMatch) {
+      return {
+        resourceMetadataUri: null,
+        registrationUrl: null,
+        scope: null,
+      };
+    }
+
+    // Extract the Bearer challenge parameters, stopping at the next challenge if present
+    const bearerPart = bearerMatch[1].trim();
+    const nextChallengeMatch = bearerPart.match(
+      /(.*?)(?:,\s*[A-Z][a-z]+\s+.*)/,
+    );
+    const challengeParams = nextChallengeMatch
+      ? nextChallengeMatch[1]
+      : bearerPart;
+
+    const parseParam = (name: string): string | null => {
+      // Match name=(...) where (...) is either quoted or unquoted
+      // Handles double quotes, single quotes, or no quotes
+      // Handles escaped characters inside quotes
+      const regex = new RegExp(
+        `${name}\\s*=\\s*(?:"((?:[^"\\\\]|\\\\.)*)"|'((?:[^'\\\\]|\\\\.)*)'|([^,\\s]+))`,
+        'i',
+      );
+      const match = challengeParams.match(regex);
+      if (!match) return null;
+
+      const val = match[1] ?? match[2] ?? match[3];
+      if (val === undefined) return null;
+
+      // Unescape if it was quoted
+      if (match[1] !== undefined || match[2] !== undefined) {
+        return val.replace(/\\(.)/g, '$1');
+      }
+      return val;
+    };
 
     return {
-      resourceMetadataUri: resourceMetadataMatch
-        ? resourceMetadataMatch[1]
-        : null,
-      registrationUri: registrationUriMatch ? registrationUriMatch[1] : null,
-      scope: scopeMatch ? scopeMatch[1] : null,
+      resourceMetadataUri: parseParam('resource_metadata'),
+      registrationUrl: parseParam('registration_uri'),
+      scope: parseParam('scope'),
     };
   }
 
@@ -357,7 +390,7 @@ export class OAuthUtils {
     wwwAuthenticate: string,
     mcpServerUrl?: string,
   ): Promise<MCPOAuthConfig | null> {
-    const { resourceMetadataUri, registrationUri, scope } =
+    const { resourceMetadataUri, registrationUrl, scope } =
       this.parseWWWAuthenticateHeader(wwwAuthenticate);
     if (!resourceMetadataUri) {
       return null;
@@ -396,7 +429,7 @@ export class OAuthUtils {
       // 3. Fallback to server defaults (done in metadataToOAuthConfig)
       let preferredScopes: string[] | undefined;
       if (scope) {
-        preferredScopes = scope.split(' ');
+        preferredScopes = scope.split(' ').filter(Boolean);
       } else if (resourceMetadata.scopes_supported) {
         preferredScopes = resourceMetadata.scopes_supported;
       }
@@ -405,8 +438,8 @@ export class OAuthUtils {
         authServerMetadata,
         preferredScopes,
       );
-      if (registrationUri) {
-        config.registrationUrl = registrationUri;
+      if (registrationUrl) {
+        config.registrationUrl = registrationUrl;
       }
       return config;
     }

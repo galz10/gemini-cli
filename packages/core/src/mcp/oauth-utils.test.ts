@@ -355,7 +355,7 @@ describe('OAuthUtils', () => {
       expect(result).toEqual({
         resourceMetadataUri:
           'https://example.com/.well-known/oauth-protected-resource',
-        registrationUri: null,
+        registrationUrl: null,
         scope: null,
       });
     });
@@ -366,7 +366,7 @@ describe('OAuthUtils', () => {
       const result = OAuthUtils.parseWWWAuthenticateHeader(header);
       expect(result).toEqual({
         resourceMetadataUri: 'https://example.com/res',
-        registrationUri: null,
+        registrationUrl: null,
         scope: 'read write',
       });
     });
@@ -376,9 +376,50 @@ describe('OAuthUtils', () => {
       const result = OAuthUtils.parseWWWAuthenticateHeader(header);
       expect(result).toEqual({
         resourceMetadataUri: null,
-        registrationUri: null,
+        registrationUrl: null,
         scope: null,
       });
+    });
+
+    it('should handle single quotes for parameters', () => {
+      const header =
+        "Bearer realm='example', resource_metadata='https://example.com/res', scope='read write'";
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result.resourceMetadataUri).toBe('https://example.com/res');
+      expect(result.registrationUrl).toBe(null);
+      expect(result.scope).toBe('read write');
+    });
+
+    it('should handle omitted quotes for simple scope', () => {
+      const header =
+        'Bearer realm="example", resource_metadata="https://example.com/res", scope=read';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result.resourceMetadataUri).toBe('https://example.com/res');
+      expect(result.scope).toBe('read');
+    });
+
+    it('should handle escaped characters in values', () => {
+      const header =
+        'Bearer realm="example", resource_metadata="https://example.com/res?name=\\"test\\"", scope="read"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result.resourceMetadataUri).toBe(
+        'https://example.com/res?name="test"',
+      );
+    });
+
+    it('should handle multiple challenges', () => {
+      const header =
+        'Digest realm="test", Bearer resource_metadata="https://example.com/res", scope="read"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result.resourceMetadataUri).toBe('https://example.com/res');
+      expect(result.scope).toBe('read');
+    });
+
+    it('should ignore parameters from non-Bearer challenges', () => {
+      const header =
+        'CustomScheme resource_metadata="https://malicious.com/res", Bearer resource_metadata="https://example.com/res"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result.resourceMetadataUri).toBe('https://example.com/res');
     });
   });
 
@@ -389,6 +430,34 @@ describe('OAuthUtils', () => {
       token_endpoint: 'https://auth.example.com/token',
       scopes_supported: ['read', 'write'],
     };
+
+    it('should handle empty scope string', async () => {
+      mockFetch
+        // fetchProtectedResourceMetadata(resource_metadata URL)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              resource: 'https://example.com',
+              authorization_servers: ['https://auth.example.com'],
+            }),
+        })
+        // discoverAuthorizationServerMetadata(auth server well-known URL)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockAuthServerMetadata),
+        });
+
+      const header =
+        'Bearer resource_metadata="https://example.com/res", scope=""';
+      const result = await OAuthUtils.discoverOAuthFromWWWAuthenticate(
+        header,
+        'https://example.com',
+      );
+
+      expect(result?.scopes).not.toContain('');
+      expect(result?.scopes).toEqual(['read', 'write']);
+    });
 
     it('should accept equivalent root resources with and without trailing slash', async () => {
       mockFetch
