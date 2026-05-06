@@ -23,7 +23,10 @@ import {
 import type { Config } from '../config/config.js';
 import type { LLMRequest } from './hookTranslator.js';
 import { debugLogger } from '../utils/debugLogger.js';
-import { sanitizeEnvironment } from '../services/environmentSanitization.js';
+import {
+  sanitizeEnvironment,
+  sanitizeHookEnvironment,
+} from '../services/environmentSanitization.js';
 import {
   escapeShellArg,
   getShellConfiguration,
@@ -40,22 +43,6 @@ const DEFAULT_HOOK_TIMEOUT = 60000;
  */
 const EXIT_CODE_SUCCESS = 0;
 const EXIT_CODE_NON_BLOCKING_ERROR = 1;
-
-/**
- * Environment variables that are restricted from being set by hooks for security reasons.
- */
-const RESTRICTED_ENV_VARS = [
-  'LD_PRELOAD',
-  'LD_LIBRARY_PATH',
-  'DYLD_INSERT_LIBRARIES',
-  'DYLD_LIBRARY_PATH',
-  'NODE_OPTIONS',
-  'PYTHONPATH',
-  'JAVA_TOOL_OPTIONS',
-  'PERL5LIB',
-  'RUBYLIB',
-  'PATH',
-];
 
 /**
  * Hook runner that executes command hooks
@@ -371,7 +358,15 @@ export class HookRunner {
       };
 
       // Filter restricted environment variables from hook configuration
-      const filteredHookEnv = this.sanitizeHookEnv(hookConfig.env || {});
+      const filteredHookEnv = sanitizeHookEnvironment(
+        hookConfig.env || {},
+        (key) => {
+          const hookName = hookConfig.name || hookConfig.command;
+          debugLogger.warn(
+            `Security: Blocked restricted environment variable injection in hook "${hookName}": ${key}`,
+          );
+        },
+      );
 
       const env = {
         ...baseEnv,
@@ -580,25 +575,5 @@ export class HookRunner {
         reason: text,
       };
     }
-  }
-
-  /**
-   * Sanitizes user-provided environment variables for hooks.
-   */
-  private sanitizeHookEnv(env: Record<string, string>): Record<string, string> {
-    const sanitized: Record<string, string> = {};
-    const restricted = new Set(RESTRICTED_ENV_VARS.map((v) => v.toUpperCase()));
-
-    for (const [key, value] of Object.entries(env)) {
-      if (restricted.has(key.toUpperCase())) {
-        debugLogger.warn(
-          `Security: Blocked restricted environment variable injection in hook: ${key}`,
-        );
-        continue;
-      }
-      sanitized[key] = value;
-    }
-
-    return sanitized;
   }
 }

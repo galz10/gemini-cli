@@ -489,16 +489,17 @@ describe('HookRunner', () => {
             env: expect.not.objectContaining({
               LD_PRELOAD: '/tmp/evil.so',
               NODE_OPTIONS: '--inspect',
-              PATH: '/tmp/evil/bin',
             }),
           }),
         );
 
-        // Verify that safe variables are still allowed
+        // Verify that safe variables and PATH (which is explicitly allowed) are still allowed
         const callArgs = vi.mocked(spawn).mock.calls[0][2] as {
           env: Record<string, string>;
         };
         expect(callArgs.env['SAFE_VAR']).toBe('safe-value');
+        expect(callArgs.env['PATH']).toBe('/tmp/evil/bin');
+
         expect(mockDebugLogger.warn).toHaveBeenCalledWith(
           expect.stringContaining(
             'Security: Blocked restricted environment variable injection',

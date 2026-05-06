@@ -10,6 +10,47 @@ export type EnvironmentSanitizationConfig = {
   enableEnvironmentVariableRedaction: boolean;
 };
 
+/**
+ * Environment variables that are restricted from being set by hooks for security reasons.
+ * Note: PATH is explicitly allowed to allow hooks to augment it (e.g. adding local bin folders).
+ */
+export const RESTRICTED_HOOK_ENV_VARS = [
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'NODE_OPTIONS',
+  'PYTHONPATH',
+  'JAVA_TOOL_OPTIONS',
+  'PERL5LIB',
+  'RUBYLIB',
+] as const;
+
+/**
+ * Sanitizes user-provided environment variables for hooks.
+ * Filter out restricted variables like LD_PRELOAD that could lead to command injection
+ * or environment variable poisoning.
+ */
+export function sanitizeHookEnvironment(
+  env: Record<string, string>,
+  onBlocked?: (key: string) => void,
+): Record<string, string> {
+  const sanitized: Record<string, string> = {};
+  const restricted = new Set(
+    RESTRICTED_HOOK_ENV_VARS.map((v) => v.toUpperCase()),
+  );
+
+  for (const [key, value] of Object.entries(env)) {
+    if (restricted.has(key.toUpperCase())) {
+      onBlocked?.(key);
+      continue;
+    }
+    sanitized[key] = value;
+  }
+
+  return sanitized;
+}
+
 export function sanitizeEnvironment(
   processEnv: NodeJS.ProcessEnv,
   config: EnvironmentSanitizationConfig,
