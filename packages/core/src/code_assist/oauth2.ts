@@ -300,11 +300,14 @@ async function initOauthClient(
         'Alternatively, run the command with NO_BROWSER=true for manual code entry.';
     }
 
+    const message =
+      `\n\nAttempting to open authentication page in your browser.\n` +
+      `Otherwise navigate to:\n\n${webLogin.authUrl}` +
+      (remoteGuidance ? `\n\n${remoteGuidance}` : `\n\n\n`);
+
     coreEvents.emit(CoreEvent.UserFeedback, {
       severity: 'info',
-      message:
-        `\n\nAttempting to open authentication page in your browser.\n` +
-        `Otherwise navigate to:\n\n${webLogin.authUrl}\n\n${remoteGuidance}\n\n`,
+      message,
     });
     try {
       // Attempt to open the authentication URL in the default browser.

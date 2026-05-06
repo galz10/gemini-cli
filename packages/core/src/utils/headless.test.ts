@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { isHeadlessMode } from './headless.js';
+import { isHeadlessMode, isVsCodeRemote } from './headless.js';
 import process from 'node:process';
 
 describe('isHeadlessMode', () => {
@@ -178,5 +178,53 @@ describe('isHeadlessMode', () => {
       configurable: true,
     });
     expect(isHeadlessMode({ prompt: true })).toBe(true);
+  });
+});
+describe('isVsCodeRemote', () => {
+  beforeEach(() => {
+    vi.stubEnv('TERM_PROGRAM', '');
+    vi.stubEnv('VSCODE_IPC_HOOK_CLI', '');
+    vi.stubEnv('VSCODE_GIT_ASKPASS_NODE', '');
+    vi.stubEnv('REMOTE_CONTAINERS', '');
+    vi.stubEnv('CODESPACES', '');
+    vi.stubEnv('VSCODE_PORT_FORWARDING_SERVICE', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('should return false when no VS Code environment variables are set', () => {
+    expect(isVsCodeRemote()).toBe(false);
+  });
+
+  it('should return true when TERM_PROGRAM is set to "vscode"', () => {
+    vi.stubEnv('TERM_PROGRAM', 'vscode');
+    expect(isVsCodeRemote()).toBe(true);
+  });
+
+  it('should return true when VSCODE_IPC_HOOK_CLI is set', () => {
+    vi.stubEnv('VSCODE_IPC_HOOK_CLI', 'some-path');
+    expect(isVsCodeRemote()).toBe(true);
+  });
+
+  it('should return true when VSCODE_GIT_ASKPASS_NODE is set', () => {
+    vi.stubEnv('VSCODE_GIT_ASKPASS_NODE', 'some-path');
+    expect(isVsCodeRemote()).toBe(true);
+  });
+
+  it('should return true when REMOTE_CONTAINERS is set', () => {
+    vi.stubEnv('REMOTE_CONTAINERS', 'true');
+    expect(isVsCodeRemote()).toBe(true);
+  });
+
+  it('should return true when CODESPACES is set', () => {
+    vi.stubEnv('CODESPACES', 'true');
+    expect(isVsCodeRemote()).toBe(true);
+  });
+
+  it('should return true when VSCODE_PORT_FORWARDING_SERVICE is set', () => {
+    vi.stubEnv('VSCODE_PORT_FORWARDING_SERVICE', 'true');
+    expect(isVsCodeRemote()).toBe(true);
   });
 });

@@ -54,9 +54,11 @@ export function isHeadlessMode(options?: HeadlessModeOptions): boolean {
  */
 export function isVsCodeRemote(): boolean {
   return (
-    process.env['TERM_PROGRAM'] === 'vscode' &&
-    (!!process.env['VSCODE_IPC_HOOK_CLI'] ||
-      !!process.env['VSCODE_GIT_ASKPASS_NODE'] ||
-      !!process.env['REMOTE_CONTAINERS'])
+    process.env['TERM_PROGRAM'] === 'vscode' ||
+    !!process.env['VSCODE_IPC_HOOK_CLI'] ||
+    !!process.env['VSCODE_GIT_ASKPASS_NODE'] ||
+    !!process.env['REMOTE_CONTAINERS'] ||
+    !!process.env['CODESPACES'] ||
+    !!process.env['VSCODE_PORT_FORWARDING_SERVICE']
   );
 }

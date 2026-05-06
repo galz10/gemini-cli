@@ -45,8 +45,8 @@ import {
   FatalAuthenticationError,
 } from '../utils/errors.js';
 import process from 'node:process';
-import { coreEvents } from '../utils/events.js';
-import { isHeadlessMode } from '../utils/headless.js';
+import { coreEvents, CoreEvent } from '../utils/events.js';
+import { isHeadlessMode, isVsCodeRemote } from '../utils/headless.js';
 
 vi.mock('node:os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:os')>();
@@ -279,6 +279,57 @@ describe('oauth2', () => {
       const userAccountManager = new UserAccountManager();
       expect(userAccountManager.getCachedGoogleAccount()).toBe(
         'test-google-account@gmail.com',
+      );
+    });
+
+    it('should show remote guidance message when VS Code Remote is detected', async () => {
+      vi.mocked(isVsCodeRemote).mockReturnValue(true);
+      const mockAuthUrl = 'https://example.com/auth';
+      const mockOAuth2Client = {
+        generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
+        on: vi.fn(),
+      } as unknown as OAuth2Client;
+      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
+
+      vi.mocked(open).mockImplementation(
+        async () => ({ on: vi.fn() }) as never,
+      );
+
+      const mockHttpServer = {
+        listen: vi.fn((_port, _host, callback) => callback?.()),
+        close: vi.fn(),
+        on: vi.fn(),
+        address: () => ({ port: 3000 }),
+      };
+      (http.createServer as Mock).mockImplementation(
+        () => mockHttpServer as unknown as http.Server,
+      );
+
+      const coreEventsEmitSpy = vi.spyOn(coreEvents, 'emit');
+
+      // Use a shorter timeout for this test and ensure it has unref()
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = vi.fn((callback) => {
+        callback();
+        return {
+          unref: () => {},
+          [Symbol.toPrimitive]: () => 1,
+        } as unknown as NodeJS.Timeout;
+      }) as unknown as typeof setTimeout;
+
+      try {
+        await getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfig);
+      } catch {
+        // Expected timeout or error since we don't complete the login
+      } finally {
+        global.setTimeout = originalSetTimeout;
+      }
+
+      expect(coreEventsEmitSpy).toHaveBeenCalledWith(
+        CoreEvent.UserFeedback,
+        expect.objectContaining({
+          message: expect.stringContaining('VS Code Remote detected'),
+        }),
       );
     });
 
@@ -848,17 +899,23 @@ describe('oauth2', () => {
 
         // Mock setTimeout to trigger timeout immediately
         const originalSetTimeout = global.setTimeout;
-        global.setTimeout = vi.fn(
-          (callback) => (callback(), {} as unknown as NodeJS.Timeout),
-        ) as unknown as typeof setTimeout;
+        global.setTimeout = vi.fn((callback) => {
+          callback();
+          return {
+            unref: () => {},
+            [Symbol.toPrimitive]: () => 1,
+          } as unknown as NodeJS.Timeout;
+        }) as unknown as typeof setTimeout;
 
-        await expect(
-          getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfig),
-        ).rejects.toThrow(
-          'Authentication timed out after 5 minutes. The browser tab may have gotten stuck in a loading state. Please try again or use NO_BROWSER=true for manual authentication.',
-        );
-
-        global.setTimeout = originalSetTimeout;
+        try {
+          await expect(
+            getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfig),
+          ).rejects.toThrow(
+            'Authentication timed out after 5 minutes. The browser tab may have gotten stuck in a loading state. Please try again or use NO_BROWSER=true for manual authentication.',
+          );
+        } finally {
+          global.setTimeout = originalSetTimeout;
+        }
       });
 
       it('should clear the authorization timeout immediately upon successful web login to prevent memory leaks', async () => {
