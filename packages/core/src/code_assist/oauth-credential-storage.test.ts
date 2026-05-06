@@ -275,6 +275,56 @@ describe('OAuthCredentialStorage', () => {
         updatedAt: expect.any(Number),
       });
     });
+
+    it('should preserve existing refresh token if missing from new credentials', async () => {
+      const existingMcpCredentials: OAuthCredentials = {
+        ...mockMcpCredentials,
+        token: {
+          ...mockMcpCredentials.token,
+          refreshToken: 'existing_refresh_token',
+        },
+      };
+      vi.spyOn(mockHybridTokenStorage, 'getCredentials').mockResolvedValue(
+        existingMcpCredentials,
+      );
+
+      const newCredentials: Credentials = {
+        access_token: 'new_access_token',
+        // refresh_token is missing
+      };
+
+      await OAuthCredentialStorage.saveCredentials(newCredentials);
+
+      expect(mockHybridTokenStorage.getCredentials).toHaveBeenCalledWith(
+        'main-account',
+      );
+      expect(mockHybridTokenStorage.setCredentials).toHaveBeenCalledWith(
+        expect.objectContaining({
+          token: expect.objectContaining({
+            accessToken: 'new_access_token',
+            refreshToken: 'existing_refresh_token',
+          }),
+        }),
+      );
+    });
+
+    it('should not call getCredentials if refresh_token is provided', async () => {
+      const newCredentials: Credentials = {
+        access_token: 'new_access_token',
+        refresh_token: 'new_refresh_token',
+      };
+
+      await OAuthCredentialStorage.saveCredentials(newCredentials);
+
+      expect(mockHybridTokenStorage.getCredentials).not.toHaveBeenCalled();
+      expect(mockHybridTokenStorage.setCredentials).toHaveBeenCalledWith(
+        expect.objectContaining({
+          token: expect.objectContaining({
+            refreshToken: 'new_refresh_token',
+          }),
+        }),
+      );
+    });
   });
 
   describe('clearCredentials', () => {

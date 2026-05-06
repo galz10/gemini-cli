@@ -67,12 +67,20 @@ export class OAuthCredentialStorage {
     }
 
     // Load existing credentials to preserve the refresh token if missing from the new payload.
+    // OAuth providers often omit the refresh_token in subsequent token updates.
     let existingRefreshToken: string | undefined;
-    try {
-      const existing = await this.storage.getCredentials(MAIN_ACCOUNT_KEY);
-      existingRefreshToken = existing?.token?.refreshToken;
-    } catch {
-      // Ignore read errors
+    if (!credentials.refresh_token) {
+      try {
+        const existing = await this.storage.getCredentials(MAIN_ACCOUNT_KEY);
+        existingRefreshToken = existing?.token?.refreshToken;
+      } catch (error: unknown) {
+        // Log error but continue; preservation is best-effort.
+        coreEvents.emitFeedback(
+          'info',
+          'Failed to load existing credentials during refresh token preservation',
+          error,
+        );
+      }
     }
 
     // Convert Google Credentials to OAuthCredentials format
