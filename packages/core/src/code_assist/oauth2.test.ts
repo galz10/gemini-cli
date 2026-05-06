@@ -273,6 +273,7 @@ describe('oauth2', () => {
       expect(JSON.parse(cachedGoogleAccount)).toEqual({
         active: 'test-google-account@gmail.com',
         old: [],
+        enterpriseAccounts: [],
       });
 
       // Verify the getCachedGoogleAccount function works
@@ -486,6 +487,7 @@ describe('oauth2', () => {
         expect(JSON.parse(cachedGoogleAccount)).toEqual({
           active: 'test-user-code-account@gmail.com',
           old: [],
+          enterpriseAccounts: [],
         });
       }
     });
@@ -739,6 +741,7 @@ describe('oauth2', () => {
         expect(JSON.parse(cachedContent)).toEqual({
           active: 'test-gcp-account@gmail.com',
           old: [],
+          enterpriseAccounts: [],
         });
       });
 
@@ -1785,6 +1788,205 @@ describe('oauth2', () => {
         OAuthCredentialStorage.clearCredentials as Mock,
       ).toHaveBeenCalled();
       expect(fs.existsSync(credsPath)).toBe(true); // The unencrypted file should remain
+    });
+  });
+
+  describe('Enterprise domain enforcement', () => {
+    let tempHomeDir: string;
+
+    beforeEach(() => {
+      tempHomeDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'gemini-cli-enterprise-test-'),
+      );
+      vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
+      vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempHomeDir, { recursive: true, force: true });
+      vi.clearAllMocks();
+      resetOauthClientForTesting();
+      vi.unstubAllEnvs();
+    });
+
+    it('should NOT throw for gmail.com accounts when project is missing', async () => {
+      const mockConfigNoProject = {
+        getNoBrowser: () => false,
+        getProxy: () => undefined,
+        isBrowserLaunchSuppressed: () => false,
+        getAcpMode: () => false,
+        isInteractive: () => true,
+        getProject: () => undefined,
+      } as unknown as Config;
+
+      // Mock cached credentials
+      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
+      await fs.promises.writeFile(
+        credsPath,
+        JSON.stringify({ refresh_token: 'token' }),
+      );
+
+      // Mock OAuth2Client
+      const mockClient = {
+        setCredentials: vi.fn(),
+        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
+        getTokenInfo: vi.fn().mockResolvedValue({}),
+        generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
+        on: vi.fn(),
+      };
+      vi.mocked(OAuth2Client).mockImplementation(
+        () => mockClient as unknown as OAuth2Client,
+      );
+
+      // Mock UserInfo to return a gmail account (no hd)
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ email: 'user@gmail.com' }),
+      } as unknown as Response);
+
+      await expect(
+        getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigNoProject),
+      ).resolves.toBeDefined();
+    });
+
+    it('should throw FatalAuthenticationError for workspace domains when project is missing', async () => {
+      const mockConfigNoProject = {
+        getNoBrowser: () => false,
+        getProxy: () => undefined,
+        isBrowserLaunchSuppressed: () => false,
+        getAcpMode: () => false,
+        isInteractive: () => true,
+        getProject: () => undefined,
+      } as unknown as Config;
+
+      // Mock cached credentials
+      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
+      await fs.promises.writeFile(
+        credsPath,
+        JSON.stringify({ refresh_token: 'token' }),
+      );
+
+      // Mock OAuth2Client
+      const mockClient = {
+        setCredentials: vi.fn(),
+        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
+        getTokenInfo: vi.fn().mockResolvedValue({}),
+        generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
+        on: vi.fn(),
+      };
+      vi.mocked(OAuth2Client).mockImplementation(
+        () => mockClient as unknown as OAuth2Client,
+      );
+
+      // Mock UserInfo to return a workspace account (with hd)
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: vi
+          .fn()
+          .mockResolvedValue({ email: 'user@google.com', hd: 'google.com' }),
+      } as unknown as Response);
+
+      await expect(
+        getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigNoProject),
+      ).rejects.toThrow(FatalAuthenticationError);
+      await expect(
+        getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigNoProject),
+      ).rejects.toThrow(/Enterprise account/);
+      await expect(
+        getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigNoProject),
+      ).rejects.toThrow(
+        /https:\/\/cloud\.google\.com\/resource-manager\/docs\/creating-managing-projects/,
+      );
+    });
+
+    it('should NOT throw for custom personal domains when hd is missing', async () => {
+      const mockConfigNoProject = {
+        getNoBrowser: () => false,
+        getProxy: () => undefined,
+        isBrowserLaunchSuppressed: () => false,
+        getAcpMode: () => false,
+        isInteractive: () => true,
+        getProject: () => undefined,
+      } as unknown as Config;
+
+      // Mock cached credentials
+      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
+      await fs.promises.writeFile(
+        credsPath,
+        JSON.stringify({ refresh_token: 'token' }),
+      );
+
+      // Mock OAuth2Client
+      const mockClient = {
+        setCredentials: vi.fn(),
+        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
+        getTokenInfo: vi.fn().mockResolvedValue({}),
+        generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
+        on: vi.fn(),
+      };
+      vi.mocked(OAuth2Client).mockImplementation(
+        () => mockClient as unknown as OAuth2Client,
+      );
+
+      // Mock UserInfo to return a custom personal domain that is in our consumer list
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ email: 'user@proton.me' }),
+      } as unknown as Response);
+
+      await expect(
+        getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigNoProject),
+      ).resolves.toBeDefined();
+    });
+
+    it('should correctly handle custom domains using hd status (fixed behavior)', async () => {
+      const mockConfigNoProject = {
+        getNoBrowser: () => false,
+        getProxy: () => undefined,
+        isBrowserLaunchSuppressed: () => false,
+        getAcpMode: () => false,
+        isInteractive: () => true,
+        getProject: () => undefined,
+      } as unknown as Config;
+
+      // Mock cached credentials
+      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
+      await fs.promises.writeFile(
+        credsPath,
+        JSON.stringify({ refresh_token: 'token' }),
+      );
+
+      // Mock OAuth2Client
+      const mockClient = {
+        setCredentials: vi.fn(),
+        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
+        getTokenInfo: vi.fn().mockResolvedValue({}),
+        generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
+        on: vi.fn(),
+      };
+      vi.mocked(OAuth2Client).mockImplementation(
+        () => mockClient as unknown as OAuth2Client,
+      );
+
+      // Mock UserInfo to return a custom personal domain with NO hd
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ email: 'me@personal-portfolio.com' }),
+      } as unknown as Response);
+
+      // This should now SUCCEED because it's not a Workspace account (no hd)
+      // and although it's not in our consumer list, the hd check is more authoritative.
+      // Wait, in my implementation:
+      // const isEnterprise = userAccountManager.isEnterpriseAccount(email) ?? isEnterpriseDomain(email);
+      // isEnterpriseAccount will return false (since hd is missing).
+      // So it should resolve.
+      await expect(
+        getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigNoProject),
+      ).resolves.toBeDefined();
     });
   });
 });

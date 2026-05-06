@@ -76,8 +76,44 @@ function isEnterpriseDomain(email: string | null): boolean {
   if (!domain) {
     return false;
   }
-  const consumerDomains = ['gmail.com', 'googlemail.com'];
+  const consumerDomains = [
+    'gmail.com',
+    'googlemail.com',
+    'outlook.com',
+    'hotmail.com',
+    'live.com',
+    'msn.com',
+    'yahoo.com',
+    'ymail.com',
+    'icloud.com',
+    'me.com',
+    'mac.com',
+    'aol.com',
+    'protonmail.com',
+    'proton.me',
+    'zoho.com',
+    'gmx.com',
+    'mail.com',
+    'yandex.com',
+  ];
   return !consumerDomains.includes(domain);
+}
+
+function verifyProjectRequirement(email: string | null, config: Config) {
+  if (!email) {
+    return;
+  }
+
+  // Use the cached enterprise status if available, otherwise fall back to domain detection.
+  const isEnterprise =
+    userAccountManager.isEnterpriseAccount(email) ?? isEnterpriseDomain(email);
+
+  if (isEnterprise && !config.getProject()) {
+    throw new FatalAuthenticationError(
+      `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.\n\n` +
+        'For more information on how to create a GCP project, visit: https://cloud.google.com/resource-manager/docs/creating-managing-projects',
+    );
+  }
 }
 
 //  OAuth Client ID used to initiate OAuth2Client class.
@@ -200,11 +236,7 @@ async function initOauthClient(
         }
 
         const email = userAccountManager.getCachedGoogleAccount();
-        if (isEnterpriseDomain(email) && !config.getProject()) {
-          throw new FatalAuthenticationError(
-            `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.`,
-          );
-        }
+        verifyProjectRequirement(email, config);
 
         debugLogger.log('Loaded cached credentials.');
         await triggerPostAuthCallbacks(credentials as Credentials);
@@ -212,6 +244,9 @@ async function initOauthClient(
         return client;
       }
     } catch (error) {
+      if (error instanceof FatalAuthenticationError) {
+        throw error;
+      }
       debugLogger.debug(
         `Cached credentials are not valid:`,
         getErrorMessage(error),
@@ -300,11 +335,7 @@ async function initOauthClient(
     }
 
     const email = userAccountManager.getCachedGoogleAccount();
-    if (isEnterpriseDomain(email) && !config.getProject()) {
-      throw new FatalAuthenticationError(
-        `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.`,
-      );
-    }
+    verifyProjectRequirement(email, config);
 
     await triggerPostAuthCallbacks(client.credentials);
   } else {
@@ -419,11 +450,7 @@ async function initOauthClient(
     });
 
     const email = userAccountManager.getCachedGoogleAccount();
-    if (isEnterpriseDomain(email) && !config.getProject()) {
-      throw new FatalAuthenticationError(
-        `Enterprise account (${email}) detected. Please provide a GCP project ID via --project or GOOGLE_CLOUD_PROJECT env var to enable Workspace-level governance.`,
-      );
-    }
+    verifyProjectRequirement(email, config);
 
     await triggerPostAuthCallbacks(client.credentials);
   }
@@ -456,7 +483,7 @@ async function authWithUserCode(
       code_challenge_method: CodeChallengeMethod.S256,
       code_challenge: codeVerifier.codeChallenge,
       state,
-       
+
       project: config.getProject(),
     });
     writeToStdout(
@@ -558,7 +585,7 @@ async function authWithWeb(
     access_type: 'offline',
     scope: OAUTH_SCOPE,
     state,
-     
+
     project: config.getProject(),
   });
 
@@ -781,7 +808,10 @@ async function fetchAndCacheUserInfo(client: OAuth2Client): Promise<void> {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const userInfo = await response.json();
-    await userAccountManager.cacheGoogleAccount(userInfo.email);
+    await userAccountManager.cacheGoogleAccount(
+      userInfo.email,
+      !!userInfo.hd, // If 'hd' (hosted domain) is present, it's an enterprise/Workspace account
+    );
   } catch (error) {
     debugLogger.log('Error retrieving user info:', error);
   }
