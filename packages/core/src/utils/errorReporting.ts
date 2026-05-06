@@ -6,6 +6,7 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import type { Content } from '@google/genai';
 import { debugLogger } from './debugLogger.js';
 import { Storage } from '../config/storage.js';
@@ -34,19 +35,20 @@ export async function reportError(
   type = 'general',
   reportingDir = Storage.getGlobalTempDir(), // Modified to use global gemini sessions dir
 ): Promise<void> {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const reportFileName = `gemini-client-error-${type}-${timestamp}.json`;
-  const reportPath = path.join(reportingDir, reportFileName);
-
   // Ensure reporting directory exists
   try {
     await fs.mkdir(reportingDir, { recursive: true });
   } catch (err) {
     debugLogger.error(
-      `Failed to create reporting directory: ${reportingDir}`,
+      `Failed to create reporting directory: ${reportingDir}. Falling back to system temp.`,
       err,
     );
+    reportingDir = os.tmpdir();
   }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const reportFileName = `gemini-client-error-${type}-${timestamp}.json`;
+  const reportPath = path.join(reportingDir, reportFileName);
 
   let errorToReport: { message: string; stack?: string };
   if (error instanceof Error) {

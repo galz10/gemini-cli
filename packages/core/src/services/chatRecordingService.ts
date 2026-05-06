@@ -316,6 +316,20 @@ export class ChatRecordingService {
     this.projectHash = getProjectHash(context.config.getProjectRoot());
   }
 
+  private getInitialMetadata(
+    extra?: Partial<ConversationRecord>,
+  ): ConversationRecord & { metadata: { source: string; type: string } } {
+    return {
+      metadata: { source: 'Gemini-CLI', type: 'session-data' },
+      sessionId: this.sessionId,
+      projectHash: this.projectHash,
+      startTime: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+      messages: [],
+      ...extra,
+    };
+  }
+
   async initialize(
     resumedSessionData?: ResumedSessionData,
     kind?: 'main' | 'subagent',
@@ -338,16 +352,13 @@ export class ChatRecordingService {
             this.conversationFile = this.conversationFile + 'l'; // e.g. session-foo.jsonl
 
             // Migrate the entire legacy record to the new file
-            const initialMetadata = {
-              metadata: { source: 'Gemini-CLI', type: 'session-data' },
-              sessionId: this.sessionId,
-              projectHash: this.projectHash,
+            const initialMetadata = this.getInitialMetadata({
               startTime: this.cachedConversation.startTime,
               lastUpdated: this.cachedConversation.lastUpdated,
               kind: this.cachedConversation.kind,
               directories: this.cachedConversation.directories,
               summary: this.cachedConversation.summary,
-            };
+            });
             this.appendRecord(initialMetadata);
             for (const msg of this.cachedConversation.messages) {
               this.appendRecord(msg);
@@ -420,15 +431,12 @@ export class ChatRecordingService {
               ]
             : undefined;
 
-        const initialMetadata = {
-          metadata: { source: 'Gemini-CLI', type: 'session-data' },
-          sessionId: this.sessionId,
-          projectHash: this.projectHash,
+        const initialMetadata = this.getInitialMetadata({
           startTime: new Date().toISOString(),
           lastUpdated: new Date().toISOString(),
           kind: this.kind,
           directories,
-        };
+        });
 
         this.appendRecord(initialMetadata);
         this.cachedConversation = {

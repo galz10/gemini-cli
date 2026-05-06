@@ -169,7 +169,7 @@ The manifest file defines the extension's behavior and configuration.
   - `directory`: The directory where planning artifacts are stored. This serves
     as a fallback if the user hasn't specified a plan directory in their
     settings. If not specified by either the extension or the user, the default
-    is `~/.gemini/tmp/<project>/<session-id>/plans/`.
+    is `~/.gemini/sessions/<project>/<session-id>/plans/`.
 
 When Gemini CLI starts, it loads all the extensions and merges their
 configurations. If there are any conflicts, the workspace configuration takes

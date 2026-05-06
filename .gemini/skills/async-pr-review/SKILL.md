@@ -10,7 +10,7 @@ This skill provides a set of tools to asynchronously review a Pull Request. It w
 This skill is designed to showcase an advanced "Agentic Asynchronous Pattern":
 1.  **Native Background Shells vs Headless Inference**: While Gemini CLI can natively spawn and detach background shell commands (using the `run_shell_command` tool with `is_background: true`), a standard bash background job cannot perform LLM inference. To conduct AI-driven code reviews and test generation in the background, the shell script *must* invoke the `gemini` executable headlessly using `-p`. This offloads the AI tasks to independent worker agents.
 2.  **Dynamic Git Scoping**: The review scripts avoid hardcoded paths. They use `git rev-parse --show-toplevel` to automatically resolve the root of the user's current project.
-3.  **Ephemeral Worktrees**: Instead of checking out branches in the user's main workspace, the skill provisions temporary git worktrees in `.gemini/tmp/async-reviews/pr-<number>`. This prevents git lock conflicts and namespace pollution.
+3.  **Ephemeral Worktrees**: Instead of checking out branches in the user's main workspace, the skill provisions temporary git worktrees in `.gemini/sessions/async-reviews/pr-<number>`. This prevents git lock conflicts and namespace pollution.
 4.  **Agentic Evaluation (`check-async-review.sh`)**: The check script outputs clean JSON/text statuses for the main agent to parse. The interactive agent itself synthesizes the final assessment dynamically from the generated log files.
 
 ## Workflow

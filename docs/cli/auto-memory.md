@@ -62,8 +62,9 @@ Auto Memory runs as a background task on session startup. It does not block the
 UI, consume your interactive turns, or surface tool prompts.
 
 1.  **Eligibility scan.** The service indexes recent sessions from
-    `~/.gemini/tmp/<project>/chats/`. Sessions are eligible only if they have
-    been idle for at least three hours and contain at least 10 user messages.
+    `~/.gemini/sessions/<project>/chats/`. Sessions are eligible only if they
+    have been idle for at least three hours and contain at least 10 user
+    messages.
 2.  **Lock acquisition.** A lock file in the project's memory directory
     coordinates across multiple CLI instances so extraction runs at most once at
     a time.

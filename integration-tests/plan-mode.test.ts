@@ -63,7 +63,7 @@ describe('Plan Mode', () => {
   });
 
   it('should allow write_file to the plans directory in plan mode', async () => {
-    const plansDir = '.gemini/tmp/foo/123/plans';
+    const plansDir = '.gemini/sessions/foo/123/plans';
     const testName =
       'should allow write_file to the plans directory in plan mode';
 
@@ -116,7 +116,7 @@ describe('Plan Mode', () => {
   });
 
   it('should deny write_file to non-plans directory in plan mode', async () => {
-    const plansDir = '.gemini/tmp/foo/123/plans';
+    const plansDir = '.gemini/sessions/foo/123/plans';
     const testName =
       'should deny write_file to non-plans directory in plan mode';
 
@@ -179,7 +179,7 @@ describe('Plan Mode', () => {
   });
 
   it('should allow write_file to the plans directory in plan mode even without a session ID', async () => {
-    const plansDir = '.gemini/tmp/foo/plans';
+    const plansDir = '.gemini/sessions/foo/plans';
     const testName =
       'should allow write_file to the plans directory in plan mode even without a session ID';
 

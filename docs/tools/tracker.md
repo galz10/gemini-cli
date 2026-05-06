@@ -13,8 +13,9 @@ legacy `write_todos` tool.
 
 The agent uses these tools to manage its execution plan, decompose complex goals
 into actionable sub-tasks, and provide real-time progress updates to the CLI
-interface. The task state is stored in the `.gemini/tmp/tracker/<session-id>`
-directory, allowing the agent to manage its plan for the current session.
+interface. The task state is stored in the
+`.gemini/sessions/tracker/<session-id>` directory, allowing the agent to manage
+its plan for the current session.
 
 ### Available Tools
 
@@ -36,8 +37,8 @@ directory, allowing the agent to manage its plan for the current session.
 - **Interface:** Updates the progress indicator and task tree above the CLI
   input prompt.
 - **Persistence:** Task state is saved automatically to the
-  `.gemini/tmp/tracker/<session-id>` directory. Task states are session-specific
-  and do not persist across different sessions.
+  `.gemini/sessions/tracker/<session-id>` directory. Task states are
+  session-specific and do not persist across different sessions.
 - **Dependencies:** Tasks can depend on other tasks, forming a directed acyclic
   graph (DAG). The agent must resolve dependencies before starting blocked
   tasks.

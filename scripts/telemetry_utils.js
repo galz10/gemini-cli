@@ -32,7 +32,7 @@ const USER_GEMINI_DIR = path.join(homedir(), GEMINI_DIR);
 // Project-level .gemini directory in the workspace
 const WORKSPACE_GEMINI_DIR = path.join(projectRoot, GEMINI_DIR);
 
-// Telemetry artifacts are stored in a hashed directory under the user's ~/.gemini/tmp
+// Telemetry artifacts are stored in a hashed directory under the user's ~/.gemini/sessions
 export const OTEL_DIR = path.join(USER_GEMINI_DIR, 'tmp', projectHash, 'otel');
 export const BIN_DIR = path.join(OTEL_DIR, 'bin');
 

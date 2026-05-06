@@ -136,8 +136,8 @@ These are the only allowed tools:
 - **Planning (Write):**
   [`write_file`](../tools/file-system.md#3-write_file-writefile) and
   [`replace`](../tools/file-system.md#6-replace-edit) only allowed for `.md`
-  files in the `~/.gemini/tmp/<project>/<session-id>/plans/` directory or your
-  [custom plans directory](#custom-plan-directory-and-policies).
+  files in the `~/.gemini/sessions/<project>/<session-id>/plans/` directory or
+  your [custom plans directory](#custom-plan-directory-and-policies).
 - **Memory:** [`save_memory`](../tools/memory.md)
 - **Skills:** [`activate_skill`](../cli/skills.md) (allows loading specialized
   instructions and resources in a read-only manner)
@@ -266,7 +266,7 @@ check ongoing changes in git."_
 ### Custom plan directory and policies
 
 By default, planning artifacts are stored in a managed temporary directory
-outside your project: `~/.gemini/tmp/<project>/<session-id>/plans/`.
+outside your project: `~/.gemini/sessions/<project>/<session-id>/plans/`.
 
 You can configure a custom directory for plans in your `settings.json`. For
 example, to store plans in a `.gemini/plans` directory within your project:

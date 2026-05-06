@@ -99,7 +99,7 @@ describe('Core System Prompt (prompts.ts)', () => {
         getPlansDir: vi.fn().mockReturnValue('/tmp/project-temp/plans'),
         getProjectTempTrackerDir: vi
           .fn()
-          .mockReturnValue('/mock/.gemini/tmp/session/tracker'),
+          .mockReturnValue('/mock/.gemini/sessions/session/tracker'),
       },
       isInteractive: vi.fn().mockReturnValue(true),
       isInteractiveShellEnabled: vi.fn().mockReturnValue(true),

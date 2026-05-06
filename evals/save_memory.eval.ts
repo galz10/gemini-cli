@@ -578,7 +578,7 @@ describe('save_memory', () => {
       // test command, project-wide indentation rules) belong in the
       // committed project-root ./GEMINI.md and must NOT be mirrored or
       // cross-referenced into the private project memory folder
-      // (~/.gemini/tmp/<hash>/memory/). The global ~/.gemini/GEMINI.md must
+      // (~/.gemini/sessions/<hash>/memory/). The global ~/.gemini/GEMINI.md must
       // never be touched in this mode either.
       await rig.waitForToolCall('write_file').catch(() => {});
       const writeCalls = rig
@@ -616,7 +616,7 @@ describe('save_memory', () => {
       });
       expect(
         leakedToPrivateMemory,
-        'Team-shared project conventions must NOT be mirrored into the private project memory folder (~/.gemini/tmp/<hash>/memory/) — each fact lives in exactly one tier.',
+        'Team-shared project conventions must NOT be mirrored into the private project memory folder (~/.gemini/sessions/<hash>/memory/) — each fact lives in exactly one tier.',
       ).toBe(false);
 
       const leakedToGlobal = writeCalls.some((log) => {
@@ -764,7 +764,7 @@ Quirks to remember:
       // Under experimental.memoryV2 with the Private Project Memory bullet
       // surfaced in the prompt, a fact that is project-specific AND
       // personal-to-the-user (must not be committed) should land in the
-      // private project memory folder under ~/.gemini/tmp/<hash>/memory/. The
+      // private project memory folder under ~/.gemini/sessions/<hash>/memory/. The
       // detailed note should be written to a sibling markdown file, with
       // MEMORY.md updated as the index. It must NOT go to committed
       // ./GEMINI.md or the global ~/.gemini/GEMINI.md.
@@ -784,7 +784,7 @@ Quirks to remember:
       });
       expect(
         wroteUserProjectDetail,
-        'Expected the personal-to-user project note to be written to a private project memory detail file (~/.gemini/tmp/<hash>/memory/*.md)',
+        'Expected the personal-to-user project note to be written to a private project memory detail file (~/.gemini/sessions/<hash>/memory/*.md)',
       ).toBe(true);
 
       const wroteUserProjectIndex = writeCalls.some((log) => {
@@ -793,7 +793,7 @@ Quirks to remember:
       });
       expect(
         wroteUserProjectIndex,
-        'Expected the personal-to-user project note to update the private project memory index (~/.gemini/tmp/<hash>/memory/MEMORY.md)',
+        'Expected the personal-to-user project note to update the private project memory index (~/.gemini/sessions/<hash>/memory/MEMORY.md)',
       ).toBe(true);
 
       // Defensive: should NOT have written this private note to the

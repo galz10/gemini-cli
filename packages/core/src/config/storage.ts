@@ -22,7 +22,7 @@ import { debugLogger } from '../utils/debugLogger.js';
 
 export const OAUTH_FILE = 'oauth_creds.json';
 export const TRUSTED_FOLDERS_FILENAME = 'trustedFolders.json';
-const SESSIONS_DIR_NAME = 'sessions';
+const TEMP_DIR_NAME = 'sessions';
 const BIN_DIR_NAME = 'bin';
 const AGENTS_DIR_NAME = '.agents';
 
@@ -34,6 +34,8 @@ export class Storage {
   private projectIdentifier: string | undefined;
   private initPromise: Promise<void> | undefined;
   private customPlansDir: string | undefined;
+
+  private static hasPurgedLegacyFiles = false;
 
   constructor(targetDir: string, sessionId?: string) {
     this.targetDir = targetDir;
@@ -161,7 +163,7 @@ export class Storage {
   }
 
   static getGlobalTempDir(): string {
-    return path.join(Storage.getGlobalGeminiDir(), SESSIONS_DIR_NAME);
+    return path.join(Storage.getGlobalGeminiDir(), TEMP_DIR_NAME);
   }
 
   static getGlobalBinDir(): string {
@@ -244,6 +246,17 @@ export class Storage {
         return;
       }
 
+      // One-time migration from legacy 'tmp' directory to 'sessions'
+      const globalGeminiDir = Storage.getGlobalGeminiDir();
+      const oldGlobalTempDir = path.join(globalGeminiDir, 'tmp');
+      const newGlobalTempDir = Storage.getGlobalTempDir();
+      if (oldGlobalTempDir !== newGlobalTempDir) {
+        await StorageMigration.migrateDirectory(
+          oldGlobalTempDir,
+          newGlobalTempDir,
+        );
+      }
+
       const registryPath = path.join(
         Storage.getGlobalGeminiDir(),
         'projects.json',
@@ -266,6 +279,11 @@ export class Storage {
    * Purges legacy temporary files from the system temp directory that may be flagged by AV.
    */
   private async purgeLegacyTempFiles(): Promise<void> {
+    if (Storage.hasPurgedLegacyFiles) {
+      return;
+    }
+    Storage.hasPurgedLegacyFiles = true;
+
     const sysTempDir = Storage.getSystemTempDir();
     try {
       const files = await fs.promises.readdir(sysTempDir);

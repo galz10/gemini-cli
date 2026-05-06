@@ -88,7 +88,7 @@ export interface OperationalGuidelinesOptions {
   memoryV2Enabled: boolean;
   /**
    * Absolute path to the user's per-project private memory index
-   * (e.g. ~/.gemini/tmp/<project-hash>/memory/MEMORY.md). Surfaced to the
+   * (e.g. ~/.gemini/sessions/<project-hash>/memory/MEMORY.md). Surfaced to the
    * model when memoryV2Enabled is true so the prompt-driven memory flow
    * can route project-specific personal notes there instead of the committed
    * project GEMINI.md.

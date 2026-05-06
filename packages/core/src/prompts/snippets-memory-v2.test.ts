@@ -67,7 +67,7 @@ describe('renderOperationalGuidelines - memoryV2Enabled', () => {
 
   it('should include the Private Project Memory bullet with the absolute path when provided', () => {
     const userProjectMemoryPath =
-      '/Users/test/.gemini/tmp/abc123/memory/MEMORY.md';
+      '/Users/test/.gemini/sessions/abc123/memory/MEMORY.md';
     const result = renderOperationalGuidelines({
       ...baseOptions,
       memoryV2Enabled: true,

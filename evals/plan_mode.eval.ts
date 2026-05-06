@@ -201,7 +201,7 @@ describe('plan_mode', () => {
 
       if (writeCall) {
         const args = JSON.parse(writeCall.toolRequest.args);
-        expect(args.file_path).toContain('.gemini/tmp');
+        expect(args.file_path).toContain('.gemini/sessions');
         expect(args.file_path).toContain('/plans/');
         expect(args.file_path).toMatch(/\.md$/);
       }

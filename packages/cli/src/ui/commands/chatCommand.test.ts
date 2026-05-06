@@ -77,7 +77,8 @@ describe('chatCommand', () => {
               authType: AuthType.LOGIN_WITH_GOOGLE,
             }),
             storage: {
-              getProjectTempDir: () => '/project/root/.gemini/tmp/mockhash',
+              getProjectTempDir: () =>
+                '/project/root/.gemini/sessions/mockhash',
             },
           },
           geminiClient: {

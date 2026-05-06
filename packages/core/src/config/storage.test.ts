@@ -63,8 +63,11 @@ describe('Storage – initialize', () => {
     ).toHaveBeenCalledWith(projectRoot);
 
     // Verify migration calls
-    // We can't easily get the hash here without repeating logic, but we can verify it's called twice
-    expect(StorageMigration.migrateDirectory).toHaveBeenCalledTimes(2);
+    // We can't easily get the hash here without repeating logic, but we can verify it's called three times:
+    // 1. global 'tmp' to 'sessions' migration
+    // 2. project temp directory migration (hash to slug)
+    // 3. history directory migration (hash to slug)
+    expect(StorageMigration.migrateDirectory).toHaveBeenCalledTimes(3);
 
     // Verify identifier is set by checking a path
     expect(storage.getProjectTempDir()).toContain(PROJECT_SLUG);
@@ -147,7 +150,7 @@ describe('Storage – additional helpers', () => {
     expect(storage.getProjectAgentsDir()).toBe(expected);
   });
 
-  it('getProjectMemoryDir returns ~/.gemini/tmp/<identifier>/memory', async () => {
+  it('getProjectMemoryDir returns ~/.gemini/sessions/<identifier>/memory', async () => {
     await storage.initialize();
     const expected = path.join(
       os.homedir(),
@@ -168,7 +171,7 @@ describe('Storage – additional helpers', () => {
     expect(Storage.getMcpOAuthTokensPath()).toBe(expected);
   });
 
-  it('getGlobalBinDir returns ~/.gemini/tmp/bin', () => {
+  it('getGlobalBinDir returns ~/.gemini/sessions/bin', () => {
     const expected = path.join(os.homedir(), GEMINI_DIR, 'sessions', 'bin');
     expect(Storage.getGlobalBinDir()).toBe(expected);
   });
