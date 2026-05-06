@@ -477,15 +477,22 @@ class GrepToolInvocation extends BaseToolInvocation<
       }
 
       const parseBasePath = basePath || searchPaths[0];
+      const ignoreCache = new Map<string, boolean>();
 
       for await (const line of generator) {
         const match = this.parseRipgrepJsonLine(line, parseBasePath);
         if (match) {
-          if (
-            !no_ignore &&
-            this.fileDiscoveryService.shouldIgnoreFile(match.absolutePath)
-          ) {
-            continue;
+          if (!no_ignore) {
+            let ignored = ignoreCache.get(match.absolutePath);
+            if (ignored === undefined) {
+              ignored = this.fileDiscoveryService.shouldIgnoreFile(
+                match.absolutePath,
+              );
+              ignoreCache.set(match.absolutePath, ignored);
+            }
+            if (ignored) {
+              continue;
+            }
           }
           if (excludeRegex && excludeRegex.test(match.line)) {
             continue;

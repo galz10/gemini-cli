@@ -405,6 +405,18 @@ class GrepToolInvocation extends BaseToolInvocation<
         excludeRegex = new RegExp(exclude_pattern, 'i');
       }
 
+      const fileService = this.config.getFileService();
+      const ignoreCache = new Map<string, boolean>();
+
+      const shouldIgnore = (absPath: string): boolean => {
+        let cached = ignoreCache.get(absPath);
+        if (cached === undefined) {
+          cached = fileService.shouldIgnoreFile(absPath);
+          ignoreCache.set(absPath, cached);
+        }
+        return cached;
+      };
+
       // --- Strategy 1: git grep ---
       const isGit = isGitRepository(absolutePath);
       const gitAvailable = isGit && (await this.isCommandAvailable('git'));
@@ -435,11 +447,10 @@ class GrepToolInvocation extends BaseToolInvocation<
           });
 
           const results: GrepMatch[] = [];
-          const fileService = this.config.getFileService();
           for await (const line of generator) {
             const match = this.parseGrepLine(line, absolutePath);
             if (match) {
-              if (fileService.shouldIgnoreFile(match.absolutePath)) {
+              if (shouldIgnore(match.absolutePath)) {
                 continue;
               }
               if (excludeRegex && excludeRegex.test(match.line)) {
@@ -510,11 +521,10 @@ class GrepToolInvocation extends BaseToolInvocation<
             sandboxManager: this.config.sandboxManager,
           });
 
-          const fileService = this.config.getFileService();
           for await (const line of generator) {
             const match = this.parseGrepLine(line, absolutePath);
             if (match) {
-              if (fileService.shouldIgnoreFile(match.absolutePath)) {
+              if (shouldIgnore(match.absolutePath)) {
                 continue;
               }
               if (excludeRegex && excludeRegex.test(match.line)) {
@@ -575,13 +585,12 @@ class GrepToolInvocation extends BaseToolInvocation<
           continue;
 
         try {
-          const content = await fsPromises.readFile(fileAbsolutePath, 'utf8');
-
           // Re-verify with fileDiscoveryService for maximum safety (though globStream should handle it)
-          const fileService = this.config.getFileService();
-          if (fileService.shouldIgnoreFile(fileAbsolutePath)) {
+          if (shouldIgnore(fileAbsolutePath)) {
             continue;
           }
+
+          const content = await fsPromises.readFile(fileAbsolutePath, 'utf8');
 
           const lines = content.split(/\r?\n/);
           let matchesInFile = 0;
