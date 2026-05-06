@@ -399,6 +399,54 @@ describe('setupUser', () => {
         'LoadCodeAssist returned empty response',
       );
     });
+
+    it('should prioritize DASHER_USER reasonCode in IneligibleTierError', async () => {
+      mockLoad.mockResolvedValue({
+        currentTier: null,
+        ineligibleTiers: [
+          {
+            reasonMessage: 'Some random error',
+            reasonCode: 'DASHER_USER',
+            tierId: UserTierId.FREE,
+            tierName: 'free',
+          },
+        ],
+      });
+      mockOnboardUser.mockResolvedValue({
+        done: true,
+        response: {
+          cloudaicompanionProject: null,
+        },
+      });
+
+      await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
+        /requires a Google Workspace \(Enterprise\) account/,
+      );
+    });
+
+    it('should use double newline in Enterprise error message', async () => {
+      mockLoad.mockResolvedValue({
+        currentTier: null,
+        ineligibleTiers: [
+          {
+            reasonMessage: 'enterprise-only feature',
+            reasonCode: 'OTHER',
+            tierId: UserTierId.FREE,
+            tierName: 'free',
+          },
+        ],
+      });
+      mockOnboardUser.mockResolvedValue({
+        done: true,
+        response: {
+          cloudaicompanionProject: null,
+        },
+      });
+
+      await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
+        /Enterprise\) account\.\n\nIf you are using/,
+      );
+    });
   });
 });
 

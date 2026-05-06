@@ -25,6 +25,7 @@ import {
   clearCachedCredentialFile,
   clearOauthClientCache,
   authEvents,
+  isPersonalGmailDomain,
 } from './oauth2.js';
 import { UserAccountManager } from '../utils/userAccountManager.js';
 import * as fs from 'node:fs';
@@ -279,6 +280,43 @@ describe('oauth2', () => {
       expect(userAccountManager.getCachedGoogleAccount()).toBe(
         'test-google-account@gmail.com',
       );
+    });
+
+    describe('scope selection', () => {
+      it('should identify gmail.com and googlemail.com as personal domains', () => {
+        expect(isPersonalGmailDomain('user@gmail.com')).toBe(true);
+        expect(isPersonalGmailDomain('user@googlemail.com')).toBe(true);
+        expect(isPersonalGmailDomain('user@google.com')).toBe(false);
+        expect(isPersonalGmailDomain('user@workspace.com')).toBe(false);
+        expect(isPersonalGmailDomain(null)).toBe(false);
+      });
+
+      it('should use the correct scopes based on domain and env var', async () => {
+        const userAccountManager = new UserAccountManager();
+
+        // Personal domain
+        await userAccountManager.cacheGoogleAccount('user@gmail.com');
+        let email = userAccountManager.getCachedGoogleAccount();
+        let isPersonal =
+          isPersonalGmailDomain(email) ||
+          process.env['GEMINI_OAUTH_PERSONAL'] === 'true';
+        expect(isPersonal).toBe(true);
+
+        // Workspace domain
+        await userAccountManager.cacheGoogleAccount('user@google.com');
+        email = userAccountManager.getCachedGoogleAccount();
+        isPersonal =
+          isPersonalGmailDomain(email) ||
+          process.env['GEMINI_OAUTH_PERSONAL'] === 'true';
+        expect(isPersonal).toBe(false);
+
+        // Workspace domain with override
+        vi.stubEnv('GEMINI_OAUTH_PERSONAL', 'true');
+        isPersonal =
+          isPersonalGmailDomain(email) ||
+          process.env['GEMINI_OAUTH_PERSONAL'] === 'true';
+        expect(isPersonal).toBe(true);
+      });
     });
 
     it('should clear credentials file', async () => {

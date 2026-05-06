@@ -81,23 +81,29 @@ const OAUTH_CLIENT_ID =
 const OAUTH_CLIENT_SECRET = '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';
 
 // OAuth Scopes for Cloud Code authorization.
-const OAUTH_SCOPE = [
+export const OAUTH_SCOPE = [
   'https://www.googleapis.com/auth/cloud-platform',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
 // Minimal scopes for personal accounts that might not have GCP projects.
-const MINIMAL_OAUTH_SCOPE = [
+export const MINIMAL_OAUTH_SCOPE = [
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
 
-function isPersonalDomain(email: string | null): boolean {
+/**
+ * Checks if the given email belongs to a personal Gmail domain.
+ * excluded because personal accounts often lack a default GCP project,
+ * causing authorization errors when requesting the cloud-platform scope.
+ * @internal
+ */
+export function isPersonalGmailDomain(email: string | null): boolean {
   if (!email) {
     return false;
   }
-  const domain = email.split('@')[1]?.toLowerCase();
+  const domain = email.split('@').pop()?.toLowerCase();
   return domain === 'gmail.com' || domain === 'googlemail.com';
 }
 
@@ -427,7 +433,10 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
     const codeVerifier = await client.generateCodeVerifierAsync();
     const state = crypto.randomBytes(32).toString('hex');
     const email = userAccountManager.getCachedGoogleAccount();
-    const scopes = isPersonalDomain(email) ? MINIMAL_OAUTH_SCOPE : OAUTH_SCOPE;
+    const isPersonal =
+      isPersonalGmailDomain(email) ||
+      process.env['GEMINI_OAUTH_PERSONAL'] === 'true';
+    const scopes = isPersonal ? MINIMAL_OAUTH_SCOPE : OAUTH_SCOPE;
     const authUrl: string = client.generateAuthUrl({
       redirect_uri: redirectUri,
       access_type: 'offline',
@@ -528,7 +537,10 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
   const redirectUri = `http://127.0.0.1:${port}/oauth2callback`;
   const state = crypto.randomBytes(32).toString('hex');
   const email = userAccountManager.getCachedGoogleAccount();
-  const scopes = isPersonalDomain(email) ? MINIMAL_OAUTH_SCOPE : OAUTH_SCOPE;
+  const isPersonal =
+    isPersonalGmailDomain(email) ||
+    process.env['GEMINI_OAUTH_PERSONAL'] === 'true';
+  const scopes = isPersonal ? MINIMAL_OAUTH_SCOPE : OAUTH_SCOPE;
   const authUrl = client.generateAuthUrl({
     redirect_uri: redirectUri,
     access_type: 'offline',

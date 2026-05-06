@@ -60,7 +60,7 @@ export class IneligibleTierError extends Error {
     let message: string;
     if (isEnterpriseRestriction) {
       message =
-        'This feature requires a Google Workspace (Enterprise) account.\n' +
+        'This feature requires a Google Workspace (Enterprise) account.\n\n' +
         'If you are using a personal Gmail account, please switch to a Workspace account ' +
         'or use an API key for individual access.';
     } else {
