@@ -1218,7 +1218,7 @@ describe('oauth2', () => {
         } as unknown as Response);
 
         const consoleLogSpy = vi
-          .spyOn(debugLogger, 'log')
+          .spyOn(debugLogger, 'debug')
           .mockImplementation(() => {});
 
         let requestCallback!: http.RequestListener;
@@ -1300,7 +1300,7 @@ describe('oauth2', () => {
         (readline.createInterface as Mock).mockReturnValue(mockReadline);
 
         const consoleLogSpy = vi
-          .spyOn(debugLogger, 'log')
+          .spyOn(debugLogger, 'debug')
           .mockImplementation(() => {});
         const consoleErrorSpy = vi
           .spyOn(debugLogger, 'error')

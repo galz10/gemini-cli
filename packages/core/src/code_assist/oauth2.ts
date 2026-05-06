@@ -34,11 +34,7 @@ import { Storage } from '../config/storage.js';
 import { OAuthCredentialStorage } from './oauth-credential-storage.js';
 import { FORCE_ENCRYPTED_FILE_ENV_VAR } from '../mcp/token-storage/index.js';
 import { debugLogger } from '../utils/debugLogger.js';
-import {
-  writeToStdout,
-  createWorkingStdio,
-  writeToStderr,
-} from '../utils/stdio.js';
+import { writeToStdout, createWorkingStdio } from '../utils/stdio.js';
 import {
   enableLineWrapping,
   disableMouseEvents,
@@ -48,8 +44,11 @@ import {
 } from '../utils/terminal.js';
 import { coreEvents, CoreEvent } from '../utils/events.js';
 import { getConsentForOauth } from '../utils/authConsent.js';
+import { withTimeout } from '../utils/promiseUtils.js';
 
 export const authEvents = new EventEmitter();
+
+const AUTH_TIMEOUT_MS = 30000;
 
 async function triggerPostAuthCallbacks(tokens: Credentials) {
   // Construct a JWTInput object to pass to callbacks, as this is the
@@ -106,29 +105,8 @@ export interface OauthWebLogin {
 const oauthClientPromises = new Map<AuthType, Promise<AuthClient>>();
 
 /**
- * Wraps a promise with a timeout.
+ * Gets the storage flag for encrypted storage.
  */
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  errorMessage: string,
-): Promise<T> {
-  let timeoutId: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new FatalAuthenticationError(errorMessage));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-  }
-}
-
 function getUseEncryptedStorageFlag() {
   return process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] === 'true';
 }
@@ -193,19 +171,19 @@ async function initOauthClient(
   if (credentials) {
     client.setCredentials(credentials as Credentials);
     try {
-      debugLogger.log('Verifying cached credentials...');
+      debugLogger.debug('Verifying cached credentials...');
       // This will verify locally that the credentials look good.
       const { token } = await withTimeout(
         client.getAccessToken(),
-        30000,
+        AUTH_TIMEOUT_MS,
         'Timed out while refreshing OAuth token. Please check your network connection or log in again.',
       );
       if (token) {
-        debugLogger.log('Validating token with server...');
+        debugLogger.debug('Validating token with server...');
         // This will check with the server to see if it hasn't been revoked.
         await withTimeout(
           client.getTokenInfo(token),
-          30000,
+          AUTH_TIMEOUT_MS,
           'Timed out while validating OAuth token. Please check your network connection or log in again.',
         );
 
@@ -220,7 +198,7 @@ async function initOauthClient(
             );
           }
         }
-        debugLogger.log('Loaded cached credentials.');
+        debugLogger.debug('Loaded cached credentials.');
         await triggerPostAuthCallbacks(credentials as Credentials);
 
         return client;
@@ -231,7 +209,10 @@ async function initOauthClient(
         getErrorMessage(error),
       );
       if (error instanceof FatalAuthenticationError) {
-        writeToStderr(`\n[ERROR] ${error.message}\n`);
+        coreEvents.emit(CoreEvent.UserFeedback, {
+          severity: 'error',
+          message: error.message,
+        });
       }
     }
   }
@@ -241,7 +222,7 @@ async function initOauthClient(
   // to authenticate non-interactively using the identity of the logged-in user.
   if (authType === AuthType.COMPUTE_ADC) {
     try {
-      debugLogger.log(
+      debugLogger.debug(
         'Attempting to authenticate via metadata server application default credentials.',
       );
 
@@ -250,7 +231,7 @@ async function initOauthClient(
         // the service account email.
       });
       await computeClient.getAccessToken();
-      debugLogger.log('Authentication successful.');
+      debugLogger.debug('Authentication successful.');
 
       // Do not cache creds in this case; note that Compute client will handle its own refresh
       return computeClient;
@@ -285,10 +266,12 @@ async function initOauthClient(
       for (let i = 0; !success && i < maxRetries; i++) {
         success = await authWithUserCode(client);
         if (!success) {
-          writeToStderr(
-            '\nFailed to authenticate with user code.' +
-              (i === maxRetries - 1 ? '' : ' Retrying...\n'),
-          );
+          coreEvents.emit(CoreEvent.UserFeedback, {
+            severity: 'error',
+            message:
+              'Failed to authenticate with user code.' +
+              (i === maxRetries - 1 ? '' : ' Retrying...'),
+          });
         }
       }
     } finally {
@@ -300,7 +283,10 @@ async function initOauthClient(
     }
 
     if (!success) {
-      writeToStderr('Failed to authenticate with user code.\n');
+      coreEvents.emit(CoreEvent.UserFeedback, {
+        severity: 'error',
+        message: 'Failed to authenticate with user code.',
+      });
       throw new FatalAuthenticationError(
         'Failed to authenticate with user code.',
       );
@@ -497,7 +483,10 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
     });
 
     if (!code) {
-      writeToStderr('Authorization code is required.\n');
+      coreEvents.emit(CoreEvent.UserFeedback, {
+        severity: 'error',
+        message: 'Authorization code is required.',
+      });
       debugLogger.error('Authorization code is required.');
       return false;
     }
@@ -510,11 +499,12 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
       });
       client.setCredentials(tokens);
     } catch (error) {
-      writeToStderr(
-        'Failed to authenticate with authorization code:' +
-          getErrorMessage(error) +
-          '\n',
-      );
+      coreEvents.emit(CoreEvent.UserFeedback, {
+        severity: 'error',
+        message:
+          'Failed to authenticate with authorization code: ' +
+          getErrorMessage(error),
+      });
 
       debugLogger.error(
         'Failed to authenticate with authorization code:',
@@ -527,9 +517,10 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
     if (err instanceof FatalCancellationError) {
       throw err;
     }
-    writeToStderr(
-      'Failed to authenticate with user code:' + getErrorMessage(err) + '\n',
-    );
+    coreEvents.emit(CoreEvent.UserFeedback, {
+      severity: 'error',
+      message: 'Failed to authenticate with user code: ' + getErrorMessage(err),
+    });
     debugLogger.error(
       'Failed to authenticate with user code:',
       getErrorMessage(err),
@@ -764,7 +755,7 @@ async function fetchAndCacheUserInfo(client: OAuth2Client): Promise<void> {
     );
 
     if (!response.ok) {
-      debugLogger.log(
+      debugLogger.debug(
         'Failed to fetch user info:',
         response.status,
         response.statusText,
@@ -776,7 +767,7 @@ async function fetchAndCacheUserInfo(client: OAuth2Client): Promise<void> {
     const userInfo = await response.json();
     await userAccountManager.cacheGoogleAccount(userInfo.email);
   } catch (error) {
-    debugLogger.log('Error retrieving user info:', error);
+    debugLogger.debug('Error retrieving user info:', error);
   }
 }
 
