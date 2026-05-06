@@ -256,6 +256,7 @@ export interface ResolvedExtensionSetting {
 
 export type TierSelectionHandler = (
   tiers: GeminiUserTier[],
+  projectId?: string,
 ) => Promise<GeminiUserTier | undefined>;
 
 export interface TrajectoryProvider {

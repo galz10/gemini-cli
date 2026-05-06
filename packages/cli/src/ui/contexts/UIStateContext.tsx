@@ -54,6 +54,7 @@ export interface ValidationDialogRequest {
 
 export interface TierSelectionDialogRequest {
   tiers: GeminiUserTier[];
+  projectId?: string;
   resolve: (tier: GeminiUserTier | undefined) => void;
 }
 

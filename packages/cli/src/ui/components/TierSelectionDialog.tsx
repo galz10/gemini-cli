@@ -11,17 +11,19 @@ import { theme } from '../semantic-colors.js';
 
 interface TierSelectionDialogProps {
   tiers: GeminiUserTier[];
+  projectId?: string;
   onSelect: (tier: GeminiUserTier | undefined) => void;
 }
 
 export const TierSelectionDialog = ({
   tiers,
+  projectId,
   onSelect,
 }: TierSelectionDialogProps) => {
   const items = tiers.map((tier) => ({
     label: tier.name || tier.id || 'Unknown Tier',
     value: tier,
-    key: tier.id || tier.name || Math.random().toString(),
+    key: tier.id || tier.name || `tier-${tiers.indexOf(tier)}`,
     sublabel: tier.description,
   }));
 
@@ -32,8 +34,9 @@ export const TierSelectionDialog = ({
       </Text>
       <Newline />
       <Text>
-        We found multiple Gemini Code Assist entitlements for your account.
-        Please select the one you would like to use for this session:
+        We found multiple Gemini Code Assist entitlements for your account
+        {projectId ? ` and project "${projectId}"` : ''}. Please select the one
+        you would like to use for this session:
       </Text>
       <Newline />
       <RadioButtonSelect items={items} onSelect={onSelect} />

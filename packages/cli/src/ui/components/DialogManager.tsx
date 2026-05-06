@@ -110,6 +110,7 @@ export const DialogManager = ({
     return (
       <TierSelectionDialog
         tiers={quotaState.tierSelectionRequest.tiers}
+        projectId={quotaState.tierSelectionRequest.projectId}
         onSelect={(tier) => uiActions.handleTierSelectionChoice(tier)}
       />
     );

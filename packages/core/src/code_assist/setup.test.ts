@@ -50,6 +50,7 @@ describe('setupUser', () => {
   let mockGetOperation: ReturnType<typeof vi.fn>;
   let mockConfig: Config;
   let mockValidationHandler: ReturnType<typeof vi.fn>;
+  let mockTierSelectionHandlerGetter: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -77,6 +78,7 @@ describe('setupUser', () => {
     );
 
     mockValidationHandler = vi.fn();
+    mockTierSelectionHandlerGetter = vi.fn().mockReturnValue(undefined);
     mockConfig = {
       getValidationHandler: () => mockValidationHandler,
       getUsageStatisticsEnabled: () => true,
@@ -86,7 +88,7 @@ describe('setupUser', () => {
       }),
       isInteractive: () => false,
       getExperiments: () => undefined,
-      getTierSelectionHandler: () => undefined,
+      getTierSelectionHandler: mockTierSelectionHandlerGetter,
     } as unknown as Config;
   });
 
@@ -399,6 +401,103 @@ describe('setupUser', () => {
       await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
         'LoadCodeAssist returned empty response',
       );
+    });
+  });
+
+  describe('tier selection and prioritization', () => {
+    const enterpriseTier: GeminiUserTier = {
+      id: 'standard-tier',
+      name: 'Enterprise',
+      description: 'Enterprise tier',
+    };
+    const freeTier: GeminiUserTier = {
+      id: UserTierId.FREE,
+      name: 'Free',
+      description: 'Free tier',
+    };
+
+    it('should prioritize Enterprise tier when projectId is present', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+      mockLoad.mockResolvedValue({
+        currentTier: freeTier,
+        allowedTiers: [freeTier, enterpriseTier],
+        cloudaicompanionProject: 'test-project',
+      });
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+      expect(result.userTier).toBe('standard-tier');
+      expect(result.userTierName).toBe('Enterprise');
+    });
+
+    it('should skip interactive selection if single Enterprise tier is prioritized', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+      mockLoad.mockResolvedValue({
+        currentTier: freeTier,
+        allowedTiers: [freeTier, enterpriseTier],
+        cloudaicompanionProject: 'test-project',
+      });
+
+      const mockTierSelectionHandler = vi.fn();
+      mockTierSelectionHandlerGetter.mockReturnValue(mockTierSelectionHandler);
+
+      await setupUser({} as OAuth2Client, mockConfig);
+      expect(mockTierSelectionHandler).not.toHaveBeenCalled();
+    });
+
+    it('should invoke interactive selection if multiple Enterprise tiers are available', async () => {
+      const enterpriseTier2: GeminiUserTier = {
+        id: 'premium-tier',
+        name: 'Enterprise Premium',
+        description: 'Enterprise Premium tier',
+      };
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+      mockLoad.mockResolvedValue({
+        currentTier: freeTier,
+        allowedTiers: [freeTier, enterpriseTier, enterpriseTier2],
+        cloudaicompanionProject: 'test-project',
+      });
+
+      const mockTierSelectionHandler = vi
+        .fn()
+        .mockResolvedValue(enterpriseTier2);
+      mockTierSelectionHandlerGetter.mockReturnValue(mockTierSelectionHandler);
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+      expect(mockTierSelectionHandler).toHaveBeenCalledWith(
+        [freeTier, enterpriseTier, enterpriseTier2],
+        'test-project',
+      );
+      expect(result.userTier).toBe('premium-tier');
+    });
+
+    it('should invoke interactive selection if no projectId is present and multiple tiers available', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', '');
+      mockLoad.mockResolvedValue({
+        currentTier: freeTier,
+        allowedTiers: [freeTier, enterpriseTier],
+        cloudaicompanionProject: 'managed-project',
+      });
+
+      const mockTierSelectionHandler = vi
+        .fn()
+        .mockResolvedValue(enterpriseTier);
+      mockTierSelectionHandlerGetter.mockReturnValue(mockTierSelectionHandler);
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+      expect(mockTierSelectionHandler).toHaveBeenCalled();
+      expect(result.userTier).toBe('standard-tier');
+    });
+
+    it('should handle edge case where currentTier is initially null', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+      mockLoad.mockResolvedValue({
+        currentTier: null,
+        allowedTiers: [enterpriseTier],
+        cloudaicompanionProject: 'test-project',
+      });
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+      expect(result.userTier).toBe('standard-tier');
     });
   });
 });

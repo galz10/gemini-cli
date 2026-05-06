@@ -242,6 +242,7 @@ export function useQuotaAndFallback({
   useEffect(() => {
     const tierSelectionHandler = async (
       tiers: GeminiUserTier[],
+      projectId?: string,
     ): Promise<GeminiUserTier | undefined> => {
       if (isTierSelectionPending.current) {
         return undefined;
@@ -252,6 +253,7 @@ export function useQuotaAndFallback({
         (resolve) => {
           setTierSelectionRequest({
             tiers,
+            projectId,
             resolve,
           });
         },

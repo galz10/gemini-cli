@@ -191,42 +191,59 @@ async function _doSetupUser(
   }
 
   // Prioritize Enterprise tier if projectId is provided and an eligible tier is found in allowedTiers.
+  let prioritizedEnterprise = false;
   if (projectId && loadRes.allowedTiers) {
-    const enterpriseTier = loadRes.allowedTiers.find(
-      (t) =>
-        t.id !== UserTierId.FREE &&
-        (t.userDefinedCloudaicompanionProject ||
-          t.id?.includes('standard') ||
-          t.id?.includes('premium')),
-    );
+    const enterpriseTiers = loadRes.allowedTiers.filter(isEnterpriseTier);
 
-    if (
-      enterpriseTier &&
-      loadRes.currentTier &&
-      enterpriseTier.id !== loadRes.currentTier.id
-    ) {
-      debugLogger.log(
-        `Switching to Enterprise tier (${enterpriseTier.name}) based on project ID: ${projectId}`,
-      );
-      loadRes.currentTier = enterpriseTier;
-      // If we switched to a paid tier, update paidTier as well
-      loadRes.paidTier = enterpriseTier;
+    // If there is exactly one enterprise tier, prioritize it and skip interactive selection.
+    if (enterpriseTiers.length === 1) {
+      const enterpriseTier = enterpriseTiers[0];
+      if (loadRes.currentTier) {
+        if (loadRes.currentTier.id !== enterpriseTier.id) {
+          debugLogger.log(
+            `Switching to Enterprise tier (${enterpriseTier.name}) based on project ID: ${projectId}`,
+          );
+          loadRes.currentTier = enterpriseTier;
+          // If we switched to a paid tier, update paidTier as well
+          loadRes.paidTier = enterpriseTier;
+        }
+      } else {
+        // If no current tier exists, we are in the onboarding flow.
+        // Mark the enterprise tier as the default so it is picked for onboarding.
+        loadRes.allowedTiers.forEach(
+          (t) => (t.isDefault = t.id === enterpriseTier.id),
+        );
+      }
+      prioritizedEnterprise = true;
     }
   }
 
   // If multiple eligible tiers are found, and we have a handler, ask the user to choose.
+  // We skip this if an enterprise tier was already prioritized based on the project ID.
   const tierSelectionHandler = config.getTierSelectionHandler();
   if (
+    !prioritizedEnterprise &&
     loadRes.allowedTiers &&
     loadRes.allowedTiers.length > 1 &&
     tierSelectionHandler
   ) {
-    const selectedTier = await tierSelectionHandler(loadRes.allowedTiers);
+    const selectedTier = await tierSelectionHandler(
+      loadRes.allowedTiers,
+      projectId,
+    );
     if (selectedTier) {
       debugLogger.log(`User selected tier: ${selectedTier.name}`);
-      loadRes.currentTier = selectedTier;
-      // If we switched to a paid tier, update paidTier as well
-      loadRes.paidTier = selectedTier;
+      if (loadRes.currentTier) {
+        loadRes.currentTier = selectedTier;
+        // If we switched to a paid tier, update paidTier as well
+        loadRes.paidTier = selectedTier;
+      } else {
+        // If no current tier exists, we are in the onboarding flow.
+        // Mark the selected tier as the default so it is picked for onboarding.
+        loadRes.allowedTiers.forEach(
+          (t) => (t.isDefault = t.id === selectedTier.id),
+        );
+      }
     }
   }
 
@@ -350,6 +367,15 @@ function getOnboardTier(res: LoadCodeAssistResponse): GeminiUserTier {
     id: UserTierId.LEGACY,
     userDefinedCloudaicompanionProject: true,
   };
+}
+
+function isEnterpriseTier(tier: GeminiUserTier): boolean {
+  return (
+    tier.id !== UserTierId.FREE &&
+    (!!tier.userDefinedCloudaicompanionProject ||
+      !!tier.id?.includes('standard') ||
+      !!tier.id?.includes('premium'))
+  );
 }
 
 function validateLoadCodeAssistResponse(res: LoadCodeAssistResponse): void {
