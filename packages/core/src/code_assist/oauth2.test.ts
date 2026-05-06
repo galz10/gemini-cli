@@ -1147,6 +1147,70 @@ describe('oauth2', () => {
         );
       });
 
+      it('should return 400 status code on state mismatch', async () => {
+        const mockAuthUrl = 'https://example.com/auth';
+        const mockCode = 'test-code';
+        const mockState = 'correct-state';
+        const wrongState = 'wrong-state';
+
+        const mockOAuth2Client = {
+          generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
+          on: vi.fn(),
+        } as unknown as OAuth2Client;
+        vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
+
+        vi.spyOn(crypto, 'randomBytes').mockReturnValue(mockState as never);
+        vi.mocked(open).mockImplementation(
+          async () => ({ on: vi.fn() }) as never,
+        );
+
+        let requestCallback!: http.RequestListener;
+        let serverListeningCallback: (value: unknown) => void;
+        const serverListeningPromise = new Promise(
+          (resolve) => (serverListeningCallback = resolve),
+        );
+
+        const mockHttpServer = {
+          listen: vi.fn(
+            (_port: number, _host: string, callback?: () => void) => {
+              if (callback) callback();
+              serverListeningCallback(undefined);
+            },
+          ),
+          close: vi.fn(),
+          on: vi.fn(),
+          address: () => ({ port: 3000 }),
+        };
+        (http.createServer as Mock).mockImplementation((cb) => {
+          requestCallback = cb;
+          return mockHttpServer as unknown as http.Server;
+        });
+
+        const clientPromise = getOauthClient(
+          AuthType.LOGIN_WITH_GOOGLE,
+          mockConfig,
+        );
+        await serverListeningPromise;
+
+        const mockReq = {
+          url: `/oauth2callback?code=${mockCode}&state=${wrongState}`,
+        } as http.IncomingMessage;
+        const mockRes = {
+          writeHead: vi.fn(),
+          end: vi.fn(),
+        } as unknown as http.ServerResponse;
+
+        await expect(async () => {
+          requestCallback(mockReq, mockRes);
+          await clientPromise;
+        }).rejects.toThrow(/OAuth state mismatch/);
+
+        expect(mockRes.writeHead).toHaveBeenCalledWith(400);
+        expect(mockRes.end).toHaveBeenCalledWith(
+          expect.stringContaining('State mismatch'),
+        );
+      });
+
       it('should handle token exchange failure with descriptive error', async () => {
         const mockAuthUrl = 'https://example.com/auth';
         const mockCode = 'test-code';

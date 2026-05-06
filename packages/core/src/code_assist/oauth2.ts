@@ -519,7 +519,21 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
   });
 
   const loginCompletePromise = new Promise<void>((resolve, reject) => {
-    const server = http.createServer(async (req, res) => {
+    // eslint-disable-next-line prefer-const
+    let timeoutId: NodeJS.Timeout | undefined;
+    // eslint-disable-next-line prefer-const
+    let server: http.Server;
+
+    const cleanup = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (server) {
+        server.close();
+      }
+    };
+
+    server = http.createServer(async (req, res) => {
       try {
         if (req.url!.indexOf('/oauth2callback') === -1) {
           // Ignore non-callback requests (like /favicon.ico) instead of rejecting.
@@ -537,18 +551,17 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
           const errorDescription =
             qs.get('error_description') || 'No additional details provided';
 
-          if (timeoutId) clearTimeout(timeoutId);
-          server.close();
+          cleanup();
           reject(
             new FatalAuthenticationError(
               `Google OAuth error: ${errorCode}. ${errorDescription}`,
             ),
           );
         } else if (qs.get('state') !== state) {
+          res.writeHead(400);
           res.end('State mismatch. Possible CSRF attack');
 
-          if (timeoutId) clearTimeout(timeoutId);
-          server.close();
+          cleanup();
           reject(
             new FatalAuthenticationError(
               'OAuth state mismatch. Possible CSRF attack or browser session issue.',
@@ -576,15 +589,13 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
             res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_SUCCESS_URL });
             res.end();
 
-            if (timeoutId) clearTimeout(timeoutId);
-            server.close();
+            cleanup();
             resolve();
           } catch (error) {
             res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
             res.end();
 
-            if (timeoutId) clearTimeout(timeoutId);
-            server.close();
+            cleanup();
             reject(
               new FatalAuthenticationError(
                 `Failed to exchange authorization code for tokens: ${getErrorMessage(error)}`,
@@ -592,8 +603,7 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
             );
           }
         } else {
-          if (timeoutId) clearTimeout(timeoutId);
-          server.close();
+          cleanup();
           reject(
             new FatalAuthenticationError(
               'No authorization code received from Google OAuth. Please try authenticating again.',
@@ -602,8 +612,7 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
         }
       } catch (e) {
         // Provide more specific error message for unexpected errors during OAuth flow
-        if (timeoutId) clearTimeout(timeoutId);
-        server.close();
+        cleanup();
         if (e instanceof FatalAuthenticationError) {
           reject(e);
         } else {
@@ -623,7 +632,7 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
     });
 
     server.on('error', (err) => {
-      clearTimeout(timeoutId);
+      cleanup();
       reject(
         new FatalAuthenticationError(
           `OAuth callback server error: ${getErrorMessage(err)}`,
@@ -632,9 +641,9 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
     });
 
     // Add a 5-minute timeout for the authentication process
-    const timeoutId = setTimeout(
+    timeoutId = setTimeout(
       () => {
-        server.close();
+        cleanup();
         reject(
           new FatalAuthenticationError(
             'Authentication timed out after 5 minutes. The browser tab may have gotten stuck in a loading state. Please try again or use NO_BROWSER=true for manual authentication.',
