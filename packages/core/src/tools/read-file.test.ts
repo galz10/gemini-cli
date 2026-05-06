@@ -336,12 +336,16 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toEqual({
-        inlineData: {
-          data: pngHeader.toString('base64'),
-          mimeType: 'image/png',
+      expect(result.llmContent).toEqual([
+        { text: '<file_data path="image.png">\n' },
+        {
+          inlineData: {
+            data: pngHeader.toString('base64'),
+            mimeType: 'image/png',
+          },
         },
-      });
+        { text: '\n</file_data>' },
+      ]);
       expect(result.returnDisplay).toBe('Read image file: image.png');
     });
 
@@ -354,12 +358,16 @@ describe('ReadFileTool', () => {
       const invocation = tool.build(params);
 
       const result = await invocation.execute({ abortSignal });
-      expect(result.llmContent).toEqual({
-        inlineData: {
-          data: pdfHeader.toString('base64'),
-          mimeType: 'application/pdf',
+      expect(result.llmContent).toEqual([
+        { text: '<file_data path="document.pdf">\n' },
+        {
+          inlineData: {
+            data: pdfHeader.toString('base64'),
+            mimeType: 'application/pdf',
+          },
         },
-      });
+        { text: '\n</file_data>' },
+      ]);
       expect(result.returnDisplay).toBe('Read pdf file: document.pdf');
     });
 
@@ -417,7 +425,7 @@ describe('ReadFileTool', () => {
 
       const result = await invocation.execute({ abortSignal });
       expect(result.llmContent).toBe(
-        '<file_data path="empty.txt">\n\n</file_data>',
+        '<file_data path="empty.txt">\n</file_data>',
       );
       expect(result.returnDisplay).toBe('');
     });

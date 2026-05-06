@@ -207,6 +207,9 @@ export async function formatGrepResults(
   for (const filePath in matchesByFile) {
     const fileMatches = matchesByFile[filePath];
     const combinedLines = fileMatches.map((m) => m.line).join('\n');
+    // Best-effort check for prompt injection in the combined lines of grep matches.
+    // Note: Since matches may be non-contiguous, payloads could potentially be
+    // split across non-returned lines and missed.
     const injectionWarning = scanForInjection(combinedLines);
 
     llmContent += `<file_data path="${filePath}">\n`;

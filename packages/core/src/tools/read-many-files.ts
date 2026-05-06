@@ -19,6 +19,7 @@ import {
 import { getErrorMessage } from '../utils/errors.js';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
+import { makeRelative } from '../utils/paths.js';
 import { glob, escape } from 'glob';
 import { buildParamArgsPattern } from '../policy/utils.js';
 import {
@@ -287,9 +288,10 @@ ${finalExclusionPatternsForDescription
     const fileProcessingPromises = sortedFiles.map(
       async (filePath): Promise<FileProcessingResult> => {
         try {
-          const relativePathForDisplay = path
-            .relative(this.config.getTargetDir(), filePath)
-            .replace(/\\/g, '/');
+          const relativePathForDisplay = makeRelative(
+            filePath,
+            this.config.getTargetDir(),
+          );
 
           const fileType = await detectFileType(filePath);
 
@@ -343,9 +345,10 @@ ${finalExclusionPatternsForDescription
             fileReadResult,
           };
         } catch (error) {
-          const relativePathForDisplay = path
-            .relative(this.config.getTargetDir(), filePath)
-            .replace(/\\/g, '/');
+          const relativePathForDisplay = makeRelative(
+            filePath,
+            this.config.getTargetDir(),
+          );
 
           return {
             success: false,
@@ -375,10 +378,6 @@ ${finalExclusionPatternsForDescription
             fileResult;
 
           if (typeof fileReadResult.llmContent === 'string') {
-            const relativePath = path
-              .relative(this.config.getTargetDir(), filePath)
-              .replace(/\\/g, '/');
-
             let fileContentForLlm = '';
             if (fileReadResult.injectionWarning) {
               fileContentForLlm += `${fileReadResult.injectionWarning}\n\n`;
@@ -389,11 +388,22 @@ ${finalExclusionPatternsForDescription
             }
             fileContentForLlm += fileReadResult.llmContent;
             contentParts.push(
-              `<file_data path="${relativePath}">\n${fileContentForLlm}\n</file_data>\n\n`,
+              `<file_data path="${relativePathForDisplay}">\n${fileContentForLlm}\n</file_data>\n\n`,
             );
           } else {
-            // This is a Part for image/pdf, which we don't add the separator to.
+            // For non-string content (e.g. image/pdf parts), we wrap them in <file_data>
+            // tags to ensure the model treats them as passive data according to the
+            // system prompt mandate.
+            contentParts.push({
+              text: `<file_data path="${relativePathForDisplay}">\n`,
+            });
+            if (fileReadResult.injectionWarning) {
+              contentParts.push({
+                text: `${fileReadResult.injectionWarning}\n\n`,
+              });
+            }
             contentParts.push(fileReadResult.llmContent);
+            contentParts.push({ text: `\n</file_data>\n\n` });
           }
 
           processedFilesRelativePaths.push(relativePathForDisplay);

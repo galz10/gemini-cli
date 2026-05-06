@@ -168,23 +168,29 @@ Action: To read more of the file, you can use the 'start_line' and 'end_line' pa
 ${contentStr}${result.llmContent}
 </file_data>`;
       } else {
-        llmContent = `<file_data path="${relativePath}">\n${contentStr}${result.llmContent || ''}\n</file_data>`;
+        const combinedContent =
+          `${contentStr}${result.llmContent || ''}`.trim();
+        llmContent = `<file_data path="${relativePath}">\n${combinedContent}${
+          combinedContent ? '\n' : ''
+        }</file_data>`;
       }
     } else {
-      // For non-string content (e.g. image/pdf parts), we return an array of parts
-      // if there's an injection warning or other metadata to prepend.
+      // For non-string content (e.g. image/pdf parts), we wrap them in <file_data>
+      // tags to ensure the model treats them as passive data according to the
+      // system prompt mandate.
       const parts: PartListUnion = [];
+      parts.push({ text: `<file_data path="${relativePath}">\n` });
       if (injectionWarning) {
         parts.push({ text: `${injectionWarning}\n\n` });
       }
-      // Note: We don't wrap image/pdf parts in <file_data> tags as they are not text.
       // The model gets the file path from the tool call arguments.
       if (Array.isArray(result.llmContent)) {
         parts.push(...result.llmContent);
       } else if (result.llmContent) {
         parts.push(result.llmContent);
       }
-      llmContent = parts.length === 1 ? parts[0] : parts;
+      parts.push({ text: `\n</file_data>` });
+      llmContent = parts;
     }
 
     const lines =

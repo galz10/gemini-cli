@@ -436,8 +436,9 @@ export function scanForInjection(content: string): string | null {
     'ignore the instructions',
     'disregard all previous',
     'system prompt bypass',
-    'you are now a',
-    'new mandate',
+    'you are now an assistant',
+    'you are now a bot',
+    'new mandate: ignore',
     'override behavior',
   ];
 

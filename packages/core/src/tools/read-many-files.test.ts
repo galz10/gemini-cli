@@ -437,6 +437,7 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       expect(result.llmContent).toEqual([
+        { text: '<file_data path="image.png">\n' },
         {
           inlineData: {
             data: Buffer.from([
@@ -445,6 +446,7 @@ describe('ReadManyFilesTool', () => {
             mimeType: 'image/png',
           },
         },
+        { text: '\n</file_data>\n\n' },
         '\n--- End of content ---',
       ]);
       expect((result.returnDisplay as ReadManyFilesResult).summary).toContain(
@@ -463,6 +465,7 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       expect(result.llmContent).toEqual([
+        { text: '<file_data path="myExactImage.png">\n' },
         {
           inlineData: {
             data: Buffer.from([
@@ -471,6 +474,7 @@ describe('ReadManyFilesTool', () => {
             mimeType: 'image/png',
           },
         },
+        { text: '\n</file_data>\n\n' },
         '\n--- End of content ---',
       ]);
     });
@@ -509,12 +513,14 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       expect(result.llmContent).toEqual([
+        { text: '<file_data path="important.pdf">\n' },
         {
           inlineData: {
             data: Buffer.from('%PDF-1.4...').toString('base64'),
             mimeType: 'application/pdf',
           },
         },
+        { text: '\n</file_data>\n\n' },
         '\n--- End of content ---',
       ]);
     });
@@ -527,12 +533,14 @@ describe('ReadManyFilesTool', () => {
         abortSignal: new AbortController().signal,
       });
       expect(result.llmContent).toEqual([
+        { text: '<file_data path="report-final.pdf">\n' },
         {
           inlineData: {
             data: Buffer.from('%PDF-1.4...').toString('base64'),
             mimeType: 'application/pdf',
           },
         },
+        { text: '\n</file_data>\n\n' },
         '\n--- End of content ---',
       ]);
     });
