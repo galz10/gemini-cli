@@ -12,6 +12,7 @@ import { debugLogger } from './debugLogger.js';
 interface UserAccounts {
   active: string | null;
   old: string[];
+  enterpriseAccounts: string[];
 }
 
 export class UserAccountManager {
@@ -25,7 +26,11 @@ export class UserAccountManager {
    * @returns A valid UserAccounts object.
    */
   private parseAndValidateAccounts(content: string): UserAccounts {
-    const defaultState = { active: null, old: [] };
+    const defaultState: UserAccounts = {
+      active: null,
+      old: [],
+      enterpriseAccounts: [],
+    };
     if (!content.trim()) {
       return defaultState;
     }
@@ -39,11 +44,14 @@ export class UserAccountManager {
       return defaultState;
     }
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-    const { active, old } = parsed as Partial<UserAccounts>;
+    const { active, old, enterpriseAccounts } = parsed as Partial<UserAccounts>;
     const isValid =
       (active === undefined || active === null || typeof active === 'string') &&
       (old === undefined ||
-        (Array.isArray(old) && old.every((i) => typeof i === 'string')));
+        (Array.isArray(old) && old.every((i) => typeof i === 'string'))) &&
+      (enterpriseAccounts === undefined ||
+        (Array.isArray(enterpriseAccounts) &&
+          enterpriseAccounts.every((i) => typeof i === 'string')));
 
     if (!isValid) {
       debugLogger.log('Invalid accounts file schema, starting fresh.');
@@ -55,11 +63,17 @@ export class UserAccountManager {
       active: parsed.active ?? null,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       old: parsed.old ?? [],
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      enterpriseAccounts: parsed.enterpriseAccounts ?? [],
     };
   }
 
   private readAccountsSync(filePath: string): UserAccounts {
-    const defaultState = { active: null, old: [] };
+    const defaultState: UserAccounts = {
+      active: null,
+      old: [],
+      enterpriseAccounts: [],
+    };
     try {
       const content = readFileSync(filePath, 'utf-8');
       return this.parseAndValidateAccounts(content);
@@ -80,7 +94,11 @@ export class UserAccountManager {
   }
 
   private async readAccounts(filePath: string): Promise<UserAccounts> {
-    const defaultState = { active: null, old: [] };
+    const defaultState: UserAccounts = {
+      active: null,
+      old: [],
+      enterpriseAccounts: [],
+    };
     try {
       const content = await fsp.readFile(filePath, 'utf-8');
       return this.parseAndValidateAccounts(content);
@@ -97,7 +115,10 @@ export class UserAccountManager {
     }
   }
 
-  async cacheGoogleAccount(email: string): Promise<void> {
+  async cacheGoogleAccount(
+    email: string,
+    isEnterprise?: boolean,
+  ): Promise<void> {
     const filePath = this.getGoogleAccountsCachePath();
     await fsp.mkdir(path.dirname(filePath), { recursive: true });
 
@@ -113,6 +134,19 @@ export class UserAccountManager {
     accounts.old = accounts.old.filter((oldEmail) => oldEmail !== email);
 
     accounts.active = email;
+
+    if (isEnterprise !== undefined) {
+      if (isEnterprise) {
+        if (!accounts.enterpriseAccounts.includes(email)) {
+          accounts.enterpriseAccounts.push(email);
+        }
+      } else {
+        accounts.enterpriseAccounts = accounts.enterpriseAccounts.filter(
+          (e) => e !== email,
+        );
+      }
+    }
+
     await fsp.writeFile(filePath, JSON.stringify(accounts, null, 2), 'utf-8');
   }
 
@@ -120,6 +154,20 @@ export class UserAccountManager {
     const filePath = this.getGoogleAccountsCachePath();
     const accounts = this.readAccountsSync(filePath);
     return accounts.active;
+  }
+
+  isEnterpriseAccount(email: string): boolean | undefined {
+    const filePath = this.getGoogleAccountsCachePath();
+    const accounts = this.readAccountsSync(filePath);
+    if (!accounts.active || accounts.active !== email) {
+      // If we are checking an email that is not active, we might still have info in enterpriseAccounts
+      if (accounts.enterpriseAccounts.includes(email)) {
+        return true;
+      }
+      // If we have old accounts but this one is not marked enterprise, we can't be sure if it's NOT enterprise
+      // unless we also tracked non-enterprise accounts. For now, let's just return true if it's in the list.
+    }
+    return accounts.enterpriseAccounts.includes(email);
   }
 
   getLifetimeGoogleAccounts(): number {

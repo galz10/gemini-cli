@@ -55,7 +55,11 @@ describe('UserAccountManager', () => {
       // Verify Google Account ID was cached
       expect(fs.existsSync(accountsFile())).toBe(true);
       expect(fs.readFileSync(accountsFile(), 'utf-8')).toBe(
-        JSON.stringify({ active: 'test1@google.com', old: [] }, null, 2),
+        JSON.stringify(
+          { active: 'test1@google.com', old: [], enterpriseAccounts: [] },
+          null,
+          2,
+        ),
       );
     });
 
@@ -77,6 +81,7 @@ describe('UserAccountManager', () => {
           {
             active: 'test3@google.com',
             old: ['test1@google.com', 'test2@google.com'],
+            enterpriseAccounts: [],
           },
           null,
           2,
@@ -99,7 +104,11 @@ describe('UserAccountManager', () => {
 
       expect(fs.readFileSync(accountsFile(), 'utf-8')).toBe(
         JSON.stringify(
-          { active: 'test1@google.com', old: ['test2@google.com'] },
+          {
+            active: 'test1@google.com',
+            old: ['test2@google.com'],
+            enterpriseAccounts: [],
+          },
           null,
           2,
         ),
@@ -119,6 +128,7 @@ describe('UserAccountManager', () => {
       expect(JSON.parse(fs.readFileSync(accountsFile(), 'utf-8'))).toEqual({
         active: 'test1@google.com',
         old: [],
+        enterpriseAccounts: [],
       });
     });
 
@@ -138,6 +148,7 @@ describe('UserAccountManager', () => {
       expect(JSON.parse(fs.readFileSync(accountsFile(), 'utf-8'))).toEqual({
         active: 'test2@google.com',
         old: [],
+        enterpriseAccounts: [],
       });
     });
   });
