@@ -369,11 +369,60 @@ describe('OAuthUtils', () => {
       });
     });
 
+    it('should handle case insensitivity', () => {
+      const header =
+        'Bearer realm="example", RESOURCE_METADATA="https://example.com/res", REGISTRATION_URI="https://example.com/reg"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result).toEqual({
+        resourceMetadataUri: 'https://example.com/res',
+        registrationUri: 'https://example.com/reg',
+      });
+    });
+
+    it('should handle variations in spacing', () => {
+      const header =
+        'Bearer realm="example", resource_metadata =  "https://example.com/res" , registration_uri ="https://example.com/reg"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result).toEqual({
+        resourceMetadataUri: 'https://example.com/res',
+        registrationUri: 'https://example.com/reg',
+      });
+    });
+
+    it('should handle unquoted values', () => {
+      const header =
+        'Bearer realm=example, resource_metadata=https://example.com/res, registration_uri=https://example.com/reg';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result).toEqual({
+        resourceMetadataUri: 'https://example.com/res',
+        registrationUri: 'https://example.com/reg',
+      });
+    });
+
     it('should return nulls when no resource metadata URI is found', () => {
       const header = 'Bearer realm="example"';
       const result = OAuthUtils.parseWWWAuthenticateHeader(header);
       expect(result).toEqual({
         resourceMetadataUri: null,
+        registrationUri: null,
+      });
+    });
+
+    it('should handle malformed headers gracefully', () => {
+      const header = 'Bearer resource_metadata=, registration_uri=';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result).toEqual({
+        resourceMetadataUri: null,
+        registrationUri: null,
+      });
+    });
+
+    it('should handle multiple challenges', () => {
+      const header =
+        'Basic realm="WallyWorld", Bearer realm="example", resource_metadata="https://example.com/res"';
+      const result = OAuthUtils.parseWWWAuthenticateHeader(header);
+      expect(result).toEqual({
+        resourceMetadataUri: 'https://example.com/res',
         registrationUri: null,
       });
     });

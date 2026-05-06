@@ -315,6 +315,11 @@ export class OAuthUtils {
     }
   }
 
+  private static readonly RESOURCE_METADATA_REGEX =
+    /\bresource_metadata\s*=\s*(?:(?:"([^"]+)")|([^,\s]+))/i;
+  private static readonly REGISTRATION_URI_REGEX =
+    /\bregistration_uri\s*=\s*(?:(?:"([^"]+)")|([^,\s]+))/i;
+
   /**
    * Parse WWW-Authenticate header to extract OAuth information.
    *
@@ -325,14 +330,16 @@ export class OAuthUtils {
     resourceMetadataUri: string | null;
     registrationUri: string | null;
   } {
-    // Parse Bearer realm and resource_metadata
-    const resourceMetadataMatch = header.match(/resource_metadata="([^"]+)"/);
-    const registrationUriMatch = header.match(/registration_uri="([^"]+)"/);
+    const resourceMetadataMatch = header.match(this.RESOURCE_METADATA_REGEX);
+    const registrationUriMatch = header.match(this.REGISTRATION_URI_REGEX);
+
     return {
       resourceMetadataUri: resourceMetadataMatch
-        ? resourceMetadataMatch[1]
+        ? (resourceMetadataMatch[1] ?? resourceMetadataMatch[2])
         : null,
-      registrationUri: registrationUriMatch ? registrationUriMatch[1] : null,
+      registrationUri: registrationUriMatch
+        ? (registrationUriMatch[1] ?? registrationUriMatch[2])
+        : null,
     };
   }
 
