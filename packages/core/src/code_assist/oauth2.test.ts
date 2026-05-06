@@ -215,14 +215,17 @@ describe('oauth2', () => {
             callback();
           }
         }),
-        on: vi.fn(),
+        on: vi.fn((event, cb) => {
+          if (event === 'request') {
+            requestCallback = cb;
+          }
+        }),
+        once: vi.fn(),
+        removeListener: vi.fn(),
         address: () => ({ port: capturedPort }),
       };
       (http.createServer as Mock).mockImplementation((cb) => {
-        requestCallback = cb as http.RequestListener<
-          typeof http.IncomingMessage,
-          typeof http.ServerResponse
-        >;
+        if (cb) requestCallback = cb;
         return mockHttpServer as unknown as http.Server;
       });
 
@@ -845,6 +848,8 @@ describe('oauth2', () => {
           ),
           close: vi.fn(),
           on: vi.fn(),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation(
@@ -854,7 +859,10 @@ describe('oauth2', () => {
         // Mock setTimeout to trigger timeout immediately
         const originalSetTimeout = global.setTimeout;
         global.setTimeout = vi.fn(
-          (callback) => (callback(), {} as unknown as NodeJS.Timeout),
+          (callback) => (
+            callback(),
+            { unref: () => {} } as unknown as NodeJS.Timeout
+          ),
         ) as unknown as typeof setTimeout;
 
         await expect(
@@ -910,14 +918,19 @@ describe('oauth2', () => {
             },
           ),
           close: vi.fn(),
-          on: vi.fn(),
+          on: vi.fn((event, cb) => {
+            if (event === 'request') {
+              requestCallback = cb;
+            }
+          }),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation((cb) => {
-          requestCallback = cb;
+          if (cb) requestCallback = cb;
           return mockHttpServer as unknown as http.Server;
         });
-
         const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
 
         const clientPromise = getOauthClient(
@@ -971,14 +984,19 @@ describe('oauth2', () => {
             },
           ),
           close: vi.fn(),
-          on: vi.fn(),
+          on: vi.fn((event, cb) => {
+            if (event === 'request') {
+              requestCallback = cb;
+            }
+          }),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation((cb) => {
-          requestCallback = cb;
+          if (cb) requestCallback = cb;
           return mockHttpServer as unknown as http.Server;
         });
-
         const clientPromise = getOauthClient(
           AuthType.LOGIN_WITH_GOOGLE,
           mockConfig,
@@ -1028,14 +1046,19 @@ describe('oauth2', () => {
             },
           ),
           close: vi.fn(),
-          on: vi.fn(),
+          on: vi.fn((event, cb) => {
+            if (event === 'request') {
+              requestCallback = cb;
+            }
+          }),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation((cb) => {
-          requestCallback = cb;
+          if (cb) requestCallback = cb;
           return mockHttpServer as unknown as http.Server;
         });
-
         const clientPromise = getOauthClient(
           AuthType.LOGIN_WITH_GOOGLE,
           mockConfig,
@@ -1104,14 +1127,19 @@ describe('oauth2', () => {
             },
           ),
           close: vi.fn(),
-          on: vi.fn(),
+          on: vi.fn((event, cb) => {
+            if (event === 'request') {
+              requestCallback = cb;
+            }
+          }),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation((cb) => {
-          requestCallback = cb;
+          if (cb) requestCallback = cb;
           return mockHttpServer as unknown as http.Server;
         });
-
         const clientPromise = getOauthClient(
           AuthType.LOGIN_WITH_GOOGLE,
           mockConfig,
@@ -1187,14 +1215,19 @@ describe('oauth2', () => {
             },
           ),
           close: vi.fn(),
-          on: vi.fn(),
+          on: vi.fn((event, cb) => {
+            if (event === 'request') {
+              requestCallback = cb;
+            }
+          }),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation((cb) => {
-          requestCallback = cb;
+          if (cb) requestCallback = cb;
           return mockHttpServer as unknown as http.Server;
         });
-
         const clientPromise = getOauthClient(
           AuthType.LOGIN_WITH_GOOGLE,
           mockConfig,
@@ -1272,14 +1305,19 @@ describe('oauth2', () => {
             },
           ),
           close: vi.fn(),
-          on: vi.fn(),
+          on: vi.fn((event, cb) => {
+            if (event === 'request') {
+              requestCallback = cb;
+            }
+          }),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         } as unknown as http.Server;
         (http.createServer as Mock).mockImplementation((cb) => {
-          requestCallback = cb;
+          if (cb) requestCallback = cb;
           return mockHttpServer;
         });
-
         const clientPromise = getOauthClient(
           AuthType.LOGIN_WITH_GOOGLE,
           mockConfig,
@@ -1383,6 +1421,8 @@ describe('oauth2', () => {
           ),
           close: vi.fn(),
           on: vi.fn(),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation(
@@ -1453,6 +1493,8 @@ describe('oauth2', () => {
           ),
           close: vi.fn(),
           on: vi.fn(),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation(
@@ -1521,6 +1563,8 @@ describe('oauth2', () => {
           ),
           close: vi.fn(),
           on: vi.fn(),
+          once: vi.fn(),
+          removeListener: vi.fn(),
           address: () => ({ port: 3000 }),
         };
         (http.createServer as Mock).mockImplementation(
@@ -1749,11 +1793,17 @@ describe('oauth2', () => {
             callback();
           }
         }),
-        on: vi.fn(),
+        on: vi.fn((event, cb) => {
+          if (event === 'request') {
+            requestCallback = cb;
+          }
+        }),
+        once: vi.fn(),
+        removeListener: vi.fn(),
         address: () => ({ port: capturedPort }),
       };
       (http.createServer as Mock).mockImplementation((cb) => {
-        requestCallback = cb as http.RequestListener;
+        if (cb) requestCallback = cb;
         return mockHttpServer as unknown as http.Server;
       });
 
