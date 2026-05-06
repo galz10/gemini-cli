@@ -402,10 +402,28 @@ function collectCommandDetails(
           const child = current.child(i);
           if (
             child &&
-            child.type === 'word' &&
-            child.startIndex !== nameNode?.startIndex
+            child.startIndex !== nameNode?.startIndex &&
+            !REDIRECTION_NAMES.has(child.type) &&
+            child.type !== 'file_redirect' &&
+            child.type !== 'heredoc_redirect' &&
+            child.type !== 'herestring_redirect'
           ) {
-            args.push(child.text);
+            // Include most nodes as arguments if they are not redirections or the command name
+            // Common types: word, string, raw_string, expansion, command_substitution, etc.
+            if (
+              [
+                'word',
+                'string',
+                'raw_string',
+                'ansii_c_string',
+                'expansion',
+                'simple_expansion',
+                'command_substitution',
+                'process_substitution',
+              ].includes(child.type)
+            ) {
+              args.push(child.text);
+            }
           }
         }
         if (args.length > 0) {

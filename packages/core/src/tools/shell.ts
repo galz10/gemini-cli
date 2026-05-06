@@ -504,10 +504,11 @@ export class ShellToolInvocation extends BaseToolInvocation<
       }
 
       // Proactively validate the command for system protection risks (e.g. redirection to /etc/passwd)
-      const shellValidationError = SystemProtectionService.validateShellCommand(
-        strippedCommand,
-        cwd,
-      );
+      const shellValidationError =
+        await SystemProtectionService.validateShellCommand(
+          strippedCommand,
+          cwd,
+        );
       if (shellValidationError) {
         return {
           llmContent: shellValidationError,

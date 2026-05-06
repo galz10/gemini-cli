@@ -3124,7 +3124,10 @@ export class Config implements McpContext, AgentLoopContext {
     checkType: 'read' | 'write' = 'write',
   ): string | null {
     // Proactively block access to system-protected paths for all operations
-    const systemError = SystemProtectionService.validatePath(absolutePath);
+    const systemError = SystemProtectionService.validatePath(
+      absolutePath,
+      checkType,
+    );
     if (systemError) {
       return systemError;
     }
