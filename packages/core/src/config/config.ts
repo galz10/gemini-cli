@@ -1408,6 +1408,10 @@ export class Config implements McpContext, AgentLoopContext {
     this.modelRouterService = new ModelRouterService(this);
   }
 
+  hasApiKeyInEnv(): boolean {
+    return !!process.env['GEMINI_API_KEY'];
+  }
+
   get config(): Config {
     return this;
   }

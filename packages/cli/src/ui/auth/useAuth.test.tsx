@@ -121,6 +121,7 @@ describe('useAuth', () => {
   describe('useAuthCommand', () => {
     const mockConfig = {
       refreshAuth: vi.fn(),
+      hasApiKeyInEnv: vi.fn().mockReturnValue(false),
     } as unknown as Config;
 
     const createSettings = (selectedType?: AuthType) =>
@@ -176,12 +177,13 @@ describe('useAuth', () => {
 
     it('should set error if no auth type is selected but env key exists', async () => {
       process.env['GEMINI_API_KEY'] = 'env-key';
+      vi.mocked(mockConfig.hasApiKeyInEnv).mockReturnValue(true);
       const { result } = await renderHook(() =>
         useAuthCommand(createSettings(undefined), mockConfig),
       );
 
       expect(result.current.authError).toContain(
-        'An API Key was detected from your environment',
+        'An API key was detected from your environment',
       );
       expect(result.current.authState).toBe(AuthState.Updating);
     });

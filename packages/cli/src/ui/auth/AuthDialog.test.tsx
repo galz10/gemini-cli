@@ -85,6 +85,7 @@ describe('AuthDialog', () => {
     props = {
       config: {
         isBrowserLaunchSuppressed: vi.fn().mockReturnValue(false),
+        hasApiKeyInEnv: vi.fn().mockReturnValue(false),
       } as unknown as Config,
       settings: {
         merged: {
@@ -156,6 +157,30 @@ describe('AuthDialog', () => {
         unmount();
       },
     );
+  });
+
+  it('shows API key detection message when API key is in environment', async () => {
+    vi.mocked(props.config.hasApiKeyInEnv).mockReturnValue(true);
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AuthDialog {...props} />,
+    );
+    expect(lastFrame()).toContain(
+      'An API key was detected from your environment',
+    );
+    expect(lastFrame()).toContain('but you can still choose to sign in with');
+    expect(lastFrame()).toContain('Google');
+    unmount();
+  });
+
+  it('does not show API key detection message when no API key is in environment', async () => {
+    vi.mocked(props.config.hasApiKeyInEnv).mockReturnValue(false);
+    const { lastFrame, unmount } = await renderWithProviders(
+      <AuthDialog {...props} />,
+    );
+    expect(lastFrame()).not.toContain(
+      'An API key was detected from your environment',
+    );
+    unmount();
   });
 
   it('filters auth types when enforcedType is set', async () => {

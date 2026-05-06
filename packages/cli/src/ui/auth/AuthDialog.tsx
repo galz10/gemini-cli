@@ -224,10 +224,10 @@ export function AuthDialog({
             How would you like to authenticate for this project?
           </Text>
         </Box>
-        {process.env['GEMINI_API_KEY'] && (
+        {config.hasApiKeyInEnv() && (
           <Box marginTop={1}>
             <Text color={theme.text.secondary}>
-              An API Key was detected from your environment, but you can still
+              An API key was detected from your environment, but you can still
               choose to sign in with Google.
             </Text>
           </Box>

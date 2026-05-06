@@ -93,9 +93,9 @@ export const useAuthCommand = (
 
       const authType = settings.merged.security.auth.selectedType;
       if (!authType) {
-        if (process.env['GEMINI_API_KEY']) {
+        if (config.hasApiKeyInEnv()) {
           onAuthError(
-            'An API Key was detected from your environment. Choose "Gemini API Key" to use it, or select another method.',
+            'An API key was detected from your environment. Choose "Gemini API Key" to use it, or select another method.',
           );
         } else {
           onAuthError('No authentication method selected.');
