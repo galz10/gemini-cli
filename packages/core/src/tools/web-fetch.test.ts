@@ -53,7 +53,7 @@ vi.mock('../utils/fetch.js', async (importOriginal) => {
   return {
     ...actual,
     fetchWithTimeout: vi.fn(),
-    isPrivateIp: vi.fn(),
+    isPrivateIpAsync: vi.fn().mockResolvedValue(false),
   };
 });
 
@@ -379,7 +379,7 @@ describe('WebFetchTool', () => {
 
   describe('execute', () => {
     it('should return WEB_FETCH_PROCESSING_ERROR on rate limit exceeded', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
       mockGenerateContent.mockResolvedValue({
         candidates: [{ content: { parts: [{ text: 'response' }] } }],
       });
@@ -403,7 +403,7 @@ describe('WebFetchTool', () => {
     });
 
     it('should skip rate-limited URLs but fetch others', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
 
       const tool = new WebFetchTool(mockConfig, bus);
       const params = {
@@ -437,13 +437,13 @@ describe('WebFetchTool', () => {
         '[Warning] The following URLs were skipped:',
       );
       expect(result.llmContent).toContain(
-        '[Rate limit exceeded] https://ratelimit-multi.com/',
+        '[Rate limit exceeded for host: ratelimit-multi.com. Please try again in 60 seconds.] https://ratelimit-multi.com/',
       );
     });
 
     it('should skip private or local URLs but fetch others and log telemetry', async () => {
-      vi.mocked(fetchUtils.isPrivateIp).mockImplementation(
-        (url) => url === 'https://private.com/',
+      vi.mocked(fetchUtils.isPrivateIpAsync).mockImplementation(
+        async (url) => url.includes('private.com') || url.includes('localhost'),
       );
 
       const tool = new WebFetchTool(mockConfig, bus);
@@ -472,13 +472,15 @@ describe('WebFetchTool', () => {
         '[Warning] The following URLs were skipped:',
       );
       expect(result.llmContent).toContain(
-        '[Blocked Host] https://private.com/',
+        '[Access to blocked or private host https://private.com/ is not allowed.] https://private.com/',
       );
-      expect(result.llmContent).toContain('[Blocked Host] http://localhost');
+      expect(result.llmContent).toContain(
+        '[Access to blocked or private host http://localhost/ is not allowed.] http://localhost/',
+      );
     });
 
     it('should fallback to all public URLs if primary fails', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
 
       // Primary fetch fails
       mockGenerateContent.mockRejectedValueOnce(new Error('primary fail'));
@@ -514,8 +516,8 @@ describe('WebFetchTool', () => {
     });
 
     it('should NOT include private URLs in fallback', async () => {
-      vi.mocked(fetchUtils.isPrivateIp).mockImplementation(
-        (url) => url === 'https://private.com/',
+      vi.mocked(fetchUtils.isPrivateIpAsync).mockImplementation(
+        async (url) => url.includes('private.com') || url.includes('localhost'),
       );
 
       // Primary fetch fails
@@ -545,7 +547,7 @@ describe('WebFetchTool', () => {
     });
 
     it('should return WEB_FETCH_FALLBACK_FAILED on total failure', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
       mockGenerateContent.mockRejectedValue(new Error('primary fail'));
       mockFetch('https://public.ip/', new Error('fallback fetch failed'));
       const tool = new WebFetchTool(mockConfig, bus);
@@ -558,7 +560,7 @@ describe('WebFetchTool', () => {
     });
 
     it('should log telemetry when falling back due to primary fetch failure', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
       // Mock primary fetch to return empty response, triggering fallback
       mockGenerateContent.mockResolvedValueOnce({
         candidates: [],
@@ -590,7 +592,7 @@ describe('WebFetchTool', () => {
   describe('execute (fallback)', () => {
     beforeEach(() => {
       // Force fallback by mocking primary fetch to fail
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
       mockGenerateContent.mockResolvedValueOnce({
         candidates: [],
       });
@@ -928,7 +930,7 @@ describe('WebFetchTool', () => {
     });
 
     it('should execute normally after confirmation approval', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
       mockGenerateContent.mockResolvedValue({
         candidates: [
           {
@@ -962,7 +964,7 @@ describe('WebFetchTool', () => {
   describe('execute (experimental)', () => {
     beforeEach(() => {
       vi.spyOn(mockConfig, 'getDirectWebFetch').mockReturnValue(true);
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(false);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(false);
       resetRateLimitsForTesting();
     });
 
@@ -1140,7 +1142,7 @@ describe('WebFetchTool', () => {
     });
 
     it('should block private IP (experimental)', async () => {
-      vi.spyOn(fetchUtils, 'isPrivateIp').mockReturnValue(true);
+      vi.spyOn(fetchUtils, 'isPrivateIpAsync').mockResolvedValue(true);
       const tool = new WebFetchTool(mockConfig, bus);
       const invocation = tool['createInvocation'](
         { url: 'http://localhost' },

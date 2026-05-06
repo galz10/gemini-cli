@@ -144,6 +144,11 @@ describe('fetch utils', () => {
       expect(await isPrivateIpAsync('http://10.0.0.1/')).toBe(true);
     });
 
+    it('should identify localhost and 127.0.0.1 as private', async () => {
+      expect(await isPrivateIpAsync('http://localhost/')).toBe(true);
+      expect(await isPrivateIpAsync('http://127.0.0.1/')).toBe(true);
+    });
+
     it('should identify domains resolving to private IPs', async () => {
       vi.mocked(
         dnsPromises.lookup as (

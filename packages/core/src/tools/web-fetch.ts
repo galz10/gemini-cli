@@ -19,7 +19,7 @@ import type { MessageBus } from '../confirmation-bus/message-bus.js';
 import { ToolErrorType } from './tool-error.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { getResponseText } from '../utils/partUtils.js';
-import { fetchWithTimeout, isPrivateIp } from '../utils/fetch.js';
+import { fetchWithTimeout, isPrivateIpAsync } from '../utils/fetch.js';
 import { truncateString } from '../utils/textUtils.js';
 import { convert } from 'html-to-text';
 import {
@@ -274,20 +274,15 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     );
   }
 
-  private isBlockedHost(urlStr: string): boolean {
+  private async isBlockedHost(urlStr: string): Promise<boolean> {
     try {
-      const url = new URL(urlStr);
-      const hostname = url.hostname.toLowerCase();
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return true;
-      }
-      return isPrivateIp(urlStr);
+      return await isPrivateIpAsync(urlStr);
     } catch {
       return true;
     }
   }
 
-  private validateFetchRequest(urlStr: string): string {
+  private async validateFetchRequest(urlStr: string): Promise<string> {
     const url = convertGithubUrlToRaw(urlStr);
 
     let urlObj: URL;
@@ -303,7 +298,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
       );
     }
 
-    if (this.isBlockedHost(url)) {
+    if (await this.isBlockedHost(url)) {
       throw new Error(
         `Access to blocked or private host ${url} is not allowed.`,
       );
@@ -312,7 +307,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     const rateLimit = checkRateLimit(url);
     if (!rateLimit.allowed) {
       throw new Error(
-        `Rate limit exceeded for host: ${urlObj.hostname}. Please try again in ${Math.round((rateLimit.waitTimeMs || 0) / 1000)} seconds.`,
+        `Rate limit exceeded for host: ${urlObj.hostname}. Please try again in ${Math.ceil((rateLimit.waitTimeMs || 0) / 1000)} seconds.`,
       );
     }
 
@@ -323,7 +318,7 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     urlStr: string,
     signal: AbortSignal,
   ): Promise<string> {
-    const url = this.validateFetchRequest(urlStr);
+    const url = await this.validateFetchRequest(urlStr);
 
     const response = await retryWithBackoff(
       async () => {
@@ -383,32 +378,31 @@ class WebFetchToolInvocation extends BaseToolInvocation<
     return textContent;
   }
 
-  private filterAndValidateUrls(urls: string[]): {
+  private async filterAndValidateUrls(urls: string[]): Promise<{
     toFetch: string[];
     skipped: string[];
-  } {
+  }> {
     const uniqueUrls = [...new Set(urls.map(normalizeUrl))];
     const toFetch: string[] = [];
     const skipped: string[] = [];
 
     for (const url of uniqueUrls) {
-      if (this.isBlockedHost(url)) {
+      try {
+        const validatedUrl = await this.validateFetchRequest(url);
+        toFetch.push(validatedUrl);
+      } catch (e) {
+        const errorMessage = getErrorMessage(e);
         debugLogger.warn(
-          `[WebFetchTool] Skipped private or local host: ${url}`,
+          `[WebFetchTool] Skipped URL: ${url} - ${errorMessage}`,
         );
-        logWebFetchFallbackAttempt(
-          this.context.config,
-          new WebFetchFallbackAttemptEvent('private_ip_skipped'),
-        );
-        skipped.push(`[Blocked Host] ${url}`);
-        continue;
+        if (errorMessage.includes('blocked or private host')) {
+          logWebFetchFallbackAttempt(
+            this.context.config,
+            new WebFetchFallbackAttemptEvent('private_ip_skipped'),
+          );
+        }
+        skipped.push(`[${errorMessage}] ${url}`);
       }
-      if (!checkRateLimit(url).allowed) {
-        debugLogger.warn(`[WebFetchTool] Rate limit exceeded for host: ${url}`);
-        skipped.push(`[Rate limit exceeded] ${url}`);
-        continue;
-      }
-      toFetch.push(url);
     }
     return { toFetch, skipped };
   }
@@ -633,7 +627,7 @@ ${aggregatedContent}
 
     let url: string;
     try {
-      url = this.validateFetchRequest(this.params.url);
+      url = await this.validateFetchRequest(this.params.url);
     } catch (e) {
       const errorMessage = getErrorMessage(e);
       debugLogger.warn(
@@ -788,7 +782,7 @@ Response: ${rawResponseText}`;
     const userPrompt = this.params.prompt!;
     const { validUrls } = parsePrompt(userPrompt);
 
-    const { toFetch, skipped } = this.filterAndValidateUrls(validUrls);
+    const { toFetch, skipped } = await this.filterAndValidateUrls(validUrls);
 
     // If everything was skipped, fail early
     if (toFetch.length === 0 && skipped.length > 0) {
