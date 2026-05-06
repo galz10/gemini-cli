@@ -181,21 +181,38 @@ describe('isHeadlessMode', () => {
   });
 
   it('should return true in a Linux headless environment', () => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, 'platform', {
-      value: 'linux',
-      configurable: true,
-    });
-    vi.stubEnv('DISPLAY', '');
-    vi.stubEnv('WAYLAND_DISPLAY', '');
+    expect(
+      isHeadlessMode({
+        platform: 'linux',
+        env: { DISPLAY: '', WAYLAND_DISPLAY: '' },
+      }),
+    ).toBe(true);
+  });
 
-    try {
-      expect(isHeadlessMode()).toBe(true);
-    } finally {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
-    }
+  it('should return false in a Linux desktop environment (with DISPLAY)', () => {
+    expect(
+      isHeadlessMode({
+        platform: 'linux',
+        env: { DISPLAY: ':0' },
+      }),
+    ).toBe(false);
+  });
+
+  it('should return false in a Linux desktop environment (with WAYLAND_DISPLAY)', () => {
+    expect(
+      isHeadlessMode({
+        platform: 'linux',
+        env: { WAYLAND_DISPLAY: 'wayland-0' },
+      }),
+    ).toBe(false);
+  });
+
+  it('should return false in a Linux desktop environment (with MIR_SOCKET)', () => {
+    expect(
+      isHeadlessMode({
+        platform: 'linux',
+        env: { MIR_SOCKET: '/run/user/1000/mir_socket' },
+      }),
+    ).toBe(false);
   });
 });
