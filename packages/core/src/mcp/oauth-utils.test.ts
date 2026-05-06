@@ -217,6 +217,45 @@ describe('OAuthUtils', () => {
         'https://auth.example.com/mcp/.well-known/openid-configuration',
       );
     });
+
+    it('should handle Clerk-specific discovery correctly', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockAuthServerMetadata),
+      });
+
+      const result = await OAuthUtils.discoverAuthorizationServerMetadata(
+        'https://clerk.example.com/v1',
+      );
+
+      expect(result).toEqual(mockAuthServerMetadata);
+
+      // Should try the root well-known first for Clerk
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://clerk.example.com/.well-known/openid-configuration',
+      );
+    });
+
+    it('should use segments[0] for robust discovery', async () => {
+      mockFetch
+        .mockResolvedValueOnce({ ok: false }) // /.well-known/oauth-authorization-server/foo/bar
+        .mockResolvedValueOnce({ ok: false }) // /.well-known/openid-configuration/foo/bar
+        .mockResolvedValueOnce({ ok: false }) // /foo/bar/.well-known/openid-configuration
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockAuthServerMetadata),
+        });
+
+      const result = await OAuthUtils.discoverAuthorizationServerMetadata(
+        'https://auth.example.com/foo/bar',
+      );
+
+      expect(result).toEqual(mockAuthServerMetadata);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://auth.example.com/foo/.well-known/openid-configuration',
+      );
+    });
   });
 
   describe('discoverOAuthConfig', () => {

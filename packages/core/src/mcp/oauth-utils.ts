@@ -204,12 +204,15 @@ export class OAuthUtils {
       );
 
       // 4. Clerk/Common OIDC path
-      endpointsToTry.push(
-        new URL(
-          `${authServerUrlObj.pathname.split('/')[1]}/.well-known/openid-configuration`,
-          base,
-        ).toString(),
-      );
+      const segments = authServerUrlObj.pathname.split('/').filter(Boolean);
+      if (segments.length > 0) {
+        endpointsToTry.push(
+          new URL(
+            `${segments[0]}/.well-known/openid-configuration`,
+            base,
+          ).toString(),
+        );
+      }
     }
 
     // With issuer URLs without path components, and those that failed previous

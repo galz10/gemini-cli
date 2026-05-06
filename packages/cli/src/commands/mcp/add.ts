@@ -9,6 +9,27 @@ import type { CommandModule } from 'yargs';
 import { loadSettings, SettingScope } from '../../config/settings.js';
 import { debugLogger, type MCPServerConfig } from '@google/gemini-cli-core';
 import { exitCli } from '../utils.js';
+import { z } from 'zod';
+
+const addMcpServerArgsSchema = z.object({
+  name: z.string(),
+  commandOrUrl: z.string(),
+  args: z.array(z.union([z.string(), z.number()])).optional(),
+  scope: z.enum(['user', 'project']),
+  transport: z.enum(['stdio', 'sse', 'http']),
+  env: z.array(z.string()).optional(),
+  header: z.array(z.string()).optional(),
+  timeout: z.number().optional(),
+  trust: z.boolean().optional(),
+  description: z.string().optional(),
+  includeTools: z.array(z.string()).optional(),
+  excludeTools: z.array(z.string()).optional(),
+  oauthClientId: z.string().optional(),
+  oauthClientSecret: z.string().optional(),
+  oauthAuthUrl: z.string().optional(),
+  oauthTokenUrl: z.string().optional(),
+  oauthScopes: z.array(z.string()).optional(),
+});
 
 async function addMcpServer(
   name: string,
@@ -17,8 +38,8 @@ async function addMcpServer(
   options: {
     scope: string;
     transport: string;
-    env: string[] | undefined;
-    header: string[] | undefined;
+    env?: string[];
+    header?: string[];
     timeout?: number;
     trust?: boolean;
     description?: string;
@@ -249,60 +270,36 @@ export const addCommand: CommandModule = {
         describe: 'OAuth Token URL for the server',
         type: 'string',
       })
-      .option('oauth-scope', {
+      .option('oauth-scopes', {
         describe:
           'OAuth Scopes for the server (can be provided multiple times)',
         type: 'array',
         string: true,
+        nargs: 1,
       })
       .middleware((argv) => {
         // Handle -- separator args as server args if present
-        if (argv['--']) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-          const existingArgs = (argv['args'] as Array<string | number>) || [];
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-          argv['args'] = [...existingArgs, ...(argv['--'] as string[])];
+        const doubleDash = argv['--'];
+        if (Array.isArray(doubleDash)) {
+          const rawArgs = argv['args'];
+          const existingArgs: Array<string | number> = Array.isArray(rawArgs)
+            ? rawArgs.filter(
+                (item): item is string | number =>
+                  typeof item === 'string' || typeof item === 'number',
+              )
+            : [];
+          argv['args'] = [...existingArgs, ...doubleDash.map(String)];
         }
       }),
   handler: async (argv) => {
-    await addMcpServer(
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      argv['name'] as string,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      argv['commandOrUrl'] as string,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-      argv['args'] as Array<string | number>,
-      {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        scope: argv['scope'] as string,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        transport: argv['transport'] as string,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        env: argv['env'] as string[],
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        header: argv['header'] as string[],
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        timeout: argv['timeout'] as number | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        trust: argv['trust'] as boolean | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        description: argv['description'] as string | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        includeTools: argv['includeTools'] as string[] | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        excludeTools: argv['excludeTools'] as string[] | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        oauthClientId: argv['oauthClientId'] as string | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        oauthClientSecret: argv['oauthClientSecret'] as string | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        oauthAuthUrl: argv['oauthAuthUrl'] as string | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        oauthTokenUrl: argv['oauthTokenUrl'] as string | undefined,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
-        oauthScopes: argv['oauthScope'] as string[] | undefined,
-      },
-    );
+    const result = addMcpServerArgsSchema.safeParse(argv);
+    if (!result.success) {
+      debugLogger.error('Invalid arguments:', result.error.format());
+      process.exit(1);
+    }
+
+    const { name, commandOrUrl, args, ...options } = result.data;
+    await addMcpServer(name, commandOrUrl, args, options);
     await exitCli();
   },
 };

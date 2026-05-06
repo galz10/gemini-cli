@@ -418,4 +418,49 @@ describe('mcp add command', () => {
       );
     });
   });
+
+  describe('OAuth options', () => {
+    it('should save OAuth configuration when provided', async () => {
+      await parser.parseAsync(
+        'add --oauth-client-id my-id --oauth-client-secret my-secret --oauth-auth-url https://auth.com --oauth-token-url https://token.com --oauth-scopes read --oauth-scopes write my-oauth-server https://api.com/sse --transport sse',
+      );
+
+      expect(mockSetValue).toHaveBeenCalledWith(
+        SettingScope.Workspace,
+        'mcpServers',
+        {
+          'my-oauth-server': {
+            url: 'https://api.com/sse',
+            type: 'sse',
+            oauth: {
+              clientId: 'my-id',
+              clientSecret: 'my-secret',
+              authorizationUrl: 'https://auth.com',
+              tokenUrl: 'https://token.com',
+              scopes: ['read', 'write'],
+            },
+          },
+        },
+      );
+    });
+
+    it('should handle optional OAuth fields', async () => {
+      await parser.parseAsync(
+        'add --oauth-client-id my-id --oauth-auth-url https://auth.com my-partial-oauth-server https://api.com/sse --transport sse',
+      );
+
+      expect(mockSetValue).toHaveBeenCalledWith(
+        SettingScope.Workspace,
+        'mcpServers',
+        expect.objectContaining({
+          'my-partial-oauth-server': expect.objectContaining({
+            oauth: expect.objectContaining({
+              clientId: 'my-id',
+              authorizationUrl: 'https://auth.com',
+            }),
+          }),
+        }),
+      );
+    });
+  });
 });
