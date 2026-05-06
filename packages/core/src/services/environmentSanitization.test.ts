@@ -263,6 +263,20 @@ describe('sanitizeEnvironment', () => {
       expect(sanitized).toEqual({ OTHER: 'fine' });
     });
 
+    it('should still redact whitelisted variables if they contain a known secret pattern', () => {
+      const requestedConfig = {
+        allowedEnvironmentVariables: ['MY_GITHUB_TOKEN'],
+        enableEnvironmentVariableRedaction: true,
+      };
+      const processEnv = {
+        MY_GITHUB_TOKEN: 'ghp_thisshouldbestillredactedbyvaluepattern',
+      };
+      const config = getSecureSanitizationConfig(requestedConfig);
+      const sanitized = sanitizeEnvironment(processEnv, config);
+
+      expect(sanitized['MY_GITHUB_TOKEN']).toBeUndefined();
+    });
+
     it('should NOT redact GEMINI_CLI_ variables even if their value looks like a secret (fully trusted)', () => {
       const env = {
         GEMINI_CLI_INTERNAL: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
