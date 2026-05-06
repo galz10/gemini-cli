@@ -50,7 +50,11 @@ import {
 import { logBillingEvent, logInvalidChunk } from '../telemetry/loggers.js';
 import { coreEvents } from '../utils/events.js';
 import { debugLogger } from '../utils/debugLogger.js';
-import { getErrorMessage } from '../utils/errors.js';
+import {
+  getErrorMessage,
+  isPermissionDeniedError,
+  isNotFoundError,
+} from '../utils/errors.js';
 import { CreditsUsedEvent } from '../telemetry/billingEvents.js';
 import {
   fromCountTokenResponse,
@@ -615,28 +619,4 @@ function isVpcScAffectedUser(error: unknown): boolean {
     );
   }
   return false;
-}
-
-function isPermissionDeniedError(error: unknown): boolean {
-  return (
-    !!error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    !!error.response &&
-    typeof error.response === 'object' &&
-    'status' in error.response &&
-    error.response.status === 403
-  );
-}
-
-function isNotFoundError(error: unknown): boolean {
-  return (
-    !!error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    !!error.response &&
-    typeof error.response === 'object' &&
-    'status' in error.response &&
-    error.response.status === 404
-  );
 }

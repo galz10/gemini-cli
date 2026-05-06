@@ -312,3 +312,27 @@ export function isAuthenticationError(error: unknown): boolean {
 
   return false;
 }
+
+export function isPermissionDeniedError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    !!error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    error.response.status === 403
+  );
+}
+
+export function isNotFoundError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    !!error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    error.response.status === 404
+  );
+}

@@ -118,6 +118,7 @@ export async function setupUser(
   httpOptions: HttpOptions = {},
 ): Promise<UserData> {
   const projectId =
+    config.projectId ||
     process.env['GOOGLE_CLOUD_PROJECT'] ||
     process.env['GOOGLE_CLOUD_PROJECT_ID'] ||
     undefined;

@@ -214,8 +214,9 @@ async function initOauthClient(
       });
       await computeClient.getAccessToken();
 
-      // Attempt to discover project ID if not already set in environment
+      // Attempt to discover project ID if not already set in environment or config
       if (
+        !config.projectId &&
         !process.env['GOOGLE_CLOUD_PROJECT'] &&
         !process.env['GOOGLE_CLOUD_PROJECT_ID']
       ) {
@@ -224,7 +225,7 @@ async function initOauthClient(
           const projectId = await auth.getProjectId();
           if (projectId) {
             debugLogger.log(`Discovered project ID via ADC: ${projectId}`);
-            process.env['GOOGLE_CLOUD_PROJECT'] = projectId;
+            config.setProjectId(projectId);
           }
         } catch (projectIdError) {
           debugLogger.warn(

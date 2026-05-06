@@ -111,6 +111,10 @@ const mockConfig = {
   isBrowserLaunchSuppressed: () => false,
   getAcpMode: () => false,
   isInteractive: () => true,
+  projectId: undefined,
+  setProjectId(id: string | undefined) {
+    this.projectId = id as any;
+  },
 } as unknown as Config;
 
 // Mock fetch globally
@@ -559,6 +563,24 @@ describe('oauth2', () => {
       it('should return the Compute client on successful ADC authentication', async () => {
         const client = await getOauthClient(AuthType.COMPUTE_ADC, mockConfig);
         expect(client).toBe(mockComputeClient);
+      });
+
+      it('should discover project ID via ADC if not provided', async () => {
+        const mockProjectId = 'discovered-project-id';
+        const mockGoogleAuthInstance = {
+          getProjectId: vi.fn().mockResolvedValue(mockProjectId),
+          getClient: vi.fn(),
+        };
+        (GoogleAuth as unknown as Mock).mockImplementation(
+          () => mockGoogleAuthInstance,
+        );
+
+        const setProjectIdSpy = vi.spyOn(mockConfig, 'setProjectId');
+
+        await getOauthClient(AuthType.COMPUTE_ADC, mockConfig);
+
+        expect(mockGoogleAuthInstance.getProjectId).toHaveBeenCalled();
+        expect(setProjectIdSpy).toHaveBeenCalledWith(mockProjectId);
       });
 
       it('should throw an error if ADC fails', async () => {

@@ -740,6 +740,7 @@ export interface ConfigParameters {
     overageStrategy?: OverageStrategy;
   };
   vertexAiRouting?: VertexAiRoutingConfig;
+  projectId?: string;
 }
 
 export class Config implements McpContext, AgentLoopContext {
@@ -974,6 +975,7 @@ export class Config implements McpContext, AgentLoopContext {
   private lastModeSwitchTime: number = performance.now();
   readonly injectionService: InjectionService;
   private approvedPlanPath: string | undefined;
+  private _projectId?: string;
 
   constructor(params: ConfigParameters) {
     this._sessionId = params.sessionId;
@@ -1381,6 +1383,7 @@ export class Config implements McpContext, AgentLoopContext {
       overageStrategy: params.billing?.overageStrategy ?? 'ask',
     };
     this.vertexAiRouting = params.vertexAiRouting;
+    this._projectId = params.projectId;
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -1410,6 +1413,14 @@ export class Config implements McpContext, AgentLoopContext {
 
   get config(): Config {
     return this;
+  }
+
+  get projectId(): string | undefined {
+    return this._projectId;
+  }
+
+  setProjectId(projectId: string | undefined): void {
+    this._projectId = projectId;
   }
 
   isInitialized(): boolean {
