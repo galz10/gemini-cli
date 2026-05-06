@@ -9,6 +9,8 @@ import {
   setupUser,
   ValidationCancelledError,
   resetUserDataCacheForTesting,
+  MAX_ONBOARDING_RETRIES,
+  ONBOARDING_POLLING_INTERVAL_MS,
 } from './setup.js';
 import { ValidationRequiredError } from '../utils/googleQuotaErrors.js';
 import { CodeAssistServer } from '../code_assist/server.js';
@@ -20,7 +22,13 @@ import {
   OnboardingSuccessEvent,
 } from '../telemetry/index.js';
 
-vi.mock('../code_assist/server.js');
+vi.mock('../code_assist/server.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./server.js')>();
+  return {
+    ...actual,
+    CodeAssistServer: vi.fn(),
+  };
+});
 vi.mock('../telemetry/index.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../telemetry/index.js')>();
   return {
@@ -330,8 +338,8 @@ describe('setupUser', () => {
 
       const promise = setupUser({} as OAuth2Client, mockConfig);
 
-      await vi.advanceTimersByTimeAsync(5000);
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS);
 
       const userData = await promise;
 
@@ -353,16 +361,17 @@ describe('setupUser', () => {
         done: false,
       });
 
-      const setupPromise = setupUser({} as OAuth2Client, mockConfig);
-
-      // Advance timers to trigger all retries
-      for (let i = 0; i < 60; i++) {
-        await vi.advanceTimersByTimeAsync(5000);
-      }
-
-      await expect(setupPromise).rejects.toThrow(
-        'Authentication session timed out. Please try running `gemini login` again.',
-      );
+      await Promise.all([
+        expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
+          'Authentication session timed out. Please try running `gemini login` again.',
+        ),
+        (async () => {
+          // Advance timers to trigger all retries
+          for (let i = 0; i < MAX_ONBOARDING_RETRIES; i++) {
+            await vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS);
+          }
+        })(),
+      ]);
     });
 
     it('should throw helpful error when polling returns 404', async () => {
@@ -375,17 +384,78 @@ describe('setupUser', () => {
         done: false,
       });
 
-      const error404 = new Error('Not Found') as Error & { status: number };
-      error404.status = 404;
+      const error404 = {
+        response: {
+          status: 404,
+        },
+      };
       mockGetOperation.mockRejectedValue(error404);
 
-      const setupPromise = setupUser({} as OAuth2Client, mockConfig);
+      await Promise.all([
+        expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
+          'Authentication session expired or was not found. Please try running `gemini login` again.',
+        ),
+        vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS),
+      ]);
+    });
 
-      await vi.advanceTimersByTimeAsync(5000);
+    it('should retry on transient errors and eventually succeed', async () => {
+      mockLoad.mockResolvedValue({
+        allowedTiers: [mockPaidTier],
+      });
+      const operationName = 'operations/123';
+      mockOnboardUser.mockResolvedValue({
+        name: operationName,
+        done: false,
+      });
 
-      await expect(setupPromise).rejects.toThrow(
-        'Authentication session expired or was not found. Please try running `gemini login` again.',
-      );
+      mockGetOperation
+        .mockRejectedValueOnce(new Error('Internal Server Error'))
+        .mockResolvedValueOnce({
+          name: operationName,
+          done: true,
+          response: {
+            cloudaicompanionProject: {
+              id: 'server-project',
+            },
+          },
+        });
+
+      const promise = setupUser({} as OAuth2Client, mockConfig);
+
+      await vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS);
+      await vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS);
+
+      const userData = await promise;
+      expect(userData.projectId).toBe('server-project');
+      expect(mockGetOperation).toHaveBeenCalledTimes(2);
+    });
+
+    it('should fail early on terminal errors (400, 401, 403)', async () => {
+      mockLoad.mockResolvedValue({
+        allowedTiers: [mockPaidTier],
+      });
+      const operationName = 'operations/123';
+      mockOnboardUser.mockResolvedValue({
+        name: operationName,
+        done: false,
+      });
+
+      const terminalErrors = [
+        { response: { status: 400 } },
+        { response: { status: 401 } },
+        { response: { status: 403 } },
+      ];
+
+      for (const terminalError of terminalErrors) {
+        mockGetOperation.mockRejectedValueOnce(terminalError);
+        await Promise.all([
+          expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
+            'Authentication failed with a terminal error. Please try running `gemini login` again.',
+          ),
+          vi.advanceTimersByTimeAsync(ONBOARDING_POLLING_INTERVAL_MS),
+        ]);
+      }
     });
   });
 

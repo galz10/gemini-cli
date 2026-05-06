@@ -13,7 +13,17 @@ import {
   type LoadCodeAssistResponse,
   type OnboardUserRequest,
 } from './types.js';
-import { CodeAssistServer, type HttpOptions } from './server.js';
+import {
+  CodeAssistServer,
+  isBadRequestError,
+  isNotFoundError,
+  isPermissionDeniedError,
+  isUnauthenticatedError,
+  type HttpOptions,
+} from './server.js';
+
+export const ONBOARDING_POLLING_INTERVAL_MS = 5000;
+export const MAX_ONBOARDING_RETRIES = 60; // 5 minutes with 5s interval
 import type { AuthClient } from 'google-auth-library';
 import { ChangeAuthRequestedError } from '../utils/errors.js';
 import { ValidationRequiredError } from '../utils/googleQuotaErrors.js';
@@ -259,46 +269,42 @@ async function _doSetupUser(
   let lroRes = await caServer.onboardUser(onboardReq);
   if (!lroRes.done && lroRes.name) {
     const operationName = lroRes.name;
-    const maxRetries = 60; // 5 minutes with 5s interval
     let retries = 0;
 
     while (!lroRes.done) {
-      if (retries >= maxRetries) {
+      if (retries >= MAX_ONBOARDING_RETRIES) {
         throw new Error(
           'Authentication session timed out. Please try running `gemini login` again.',
         );
       }
 
-      await new Promise((f) => setTimeout(f, 5000));
+      await new Promise((f) => setTimeout(f, ONBOARDING_POLLING_INTERVAL_MS));
 
       try {
         lroRes = await caServer.getOperation(operationName);
       } catch (error: unknown) {
         debugLogger.error('Error polling onboarding operation:', error);
-        // If the operation is not found (404) or there's a permanent error,
-        // we should stop polling and inform the user.
-        const isNotFound =
-          error instanceof Error &&
-          (error.message.includes('404') ||
-            error.message.toLowerCase().includes('not found') ||
-            ('status' in error && error.status === 404) ||
-            ('response' in error &&
-              typeof error.response === 'object' &&
-              error.response !== null &&
-              'status' in error.response &&
-              error.response.status === 404));
 
-        if (isNotFound) {
+        if (isNotFoundError(error)) {
           throw new Error(
             'Authentication session expired or was not found. Please try running `gemini login` again.',
           );
         }
 
+        if (
+          isBadRequestError(error) ||
+          isUnauthenticatedError(error) ||
+          isPermissionDeniedError(error)
+        ) {
+          throw new Error(
+            'Authentication failed with a terminal error. Please try running `gemini login` again.',
+          );
+        }
+
         // For other errors (network, etc.), we can retry a few times
+      } finally {
         retries++;
-        continue;
       }
-      retries++;
     }
   }
 

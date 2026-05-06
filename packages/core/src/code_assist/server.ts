@@ -583,7 +583,7 @@ function isVpcScAffectedUser(error: unknown): boolean {
   return false;
 }
 
-function isPermissionDeniedError(error: unknown): boolean {
+export function isPermissionDeniedError(error: unknown): boolean {
   return (
     !!error &&
     typeof error === 'object' &&
@@ -592,5 +592,41 @@ function isPermissionDeniedError(error: unknown): boolean {
     typeof error.response === 'object' &&
     'status' in error.response &&
     error.response.status === 403
+  );
+}
+
+export function isNotFoundError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    !!error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    error.response.status === 404
+  );
+}
+
+export function isBadRequestError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    !!error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    error.response.status === 400
+  );
+}
+
+export function isUnauthenticatedError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    !!error.response &&
+    typeof error.response === 'object' &&
+    'status' in error.response &&
+    error.response.status === 401
   );
 }
