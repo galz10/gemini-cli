@@ -17,10 +17,20 @@ import { GeminiAgent } from './acpRpcDispatcher.js';
 import * as acp from '@agentclientprotocol/sdk';
 import {
   AuthType,
+  clearCachedCredentialFile,
   type Config,
   type MessageBus,
   type Storage,
 } from '@google/gemini-cli-core';
+
+vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@google/gemini-cli-core')>();
+  return {
+    ...actual,
+    clearCachedCredentialFile: vi.fn(),
+  };
+});
 import type { LoadedSettings } from '../config/settings.js';
 import { loadCliConfig, type CliArgs } from '../config/config.js';
 import { loadSettings, SettingScope } from '../config/settings.js';
@@ -151,6 +161,7 @@ describe('GeminiAgent - RPC Dispatcher', () => {
       methodId: AuthType.LOGIN_WITH_GOOGLE,
     });
 
+    expect(clearCachedCredentialFile).toHaveBeenCalled();
     expect(mockConfig.refreshAuth).toHaveBeenCalledWith(
       AuthType.LOGIN_WITH_GOOGLE,
       undefined,
@@ -166,6 +177,8 @@ describe('GeminiAgent - RPC Dispatcher', () => {
 
   it('should NOT overwrite existing selectedType during authentication', async () => {
     mockSettings.merged.security.auth.selectedType = AuthType.LOGIN_WITH_GOOGLE;
+    vi.mocked(clearCachedCredentialFile).mockClear();
+
     await agent.authenticate({
       methodId: AuthType.USE_GEMINI,
       _meta: {
@@ -173,6 +186,7 @@ describe('GeminiAgent - RPC Dispatcher', () => {
       },
     } as unknown as acp.AuthenticateRequest);
 
+    expect(clearCachedCredentialFile).not.toHaveBeenCalled();
     expect(mockConfig.refreshAuth).toHaveBeenCalledWith(
       AuthType.USE_GEMINI,
       'test-api-key',

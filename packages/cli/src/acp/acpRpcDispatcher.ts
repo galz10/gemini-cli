@@ -108,10 +108,6 @@ export class GeminiAgent {
     const method = z.nativeEnum(AuthType).parse(methodId);
     const selectedAuthType = this.settings.merged.security.auth.selectedType;
 
-    // Only clear credentials when switching to a different auth method
-    if (selectedAuthType && selectedAuthType !== method) {
-      await clearCachedCredentialFile();
-    }
     // Check for api-key in _meta
     const meta = hasMeta(req) ? req._meta : undefined;
     const apiKey =
@@ -163,6 +159,7 @@ export class GeminiAgent {
     // This prevents ACP-initiated auth from overwriting a user's durable setting
     // (e.g. they usually use OAuth, but an IDE is using an API key via ACP).
     if (!selectedAuthType) {
+      await clearCachedCredentialFile();
       this.settings.setValue(
         SettingScope.User,
         'security.auth.selectedType',
