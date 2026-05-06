@@ -7,6 +7,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ServiceAccountImpersonationProvider } from './sa-impersonation-provider.js';
 import type { MCPServerConfig } from '../config/config.js';
+import { GoogleAuth } from 'google-auth-library';
+import { coreEvents } from '../utils/events.js';
 
 const mockRequest = vi.fn();
 const mockGetClient = vi.fn(() => ({
@@ -149,5 +151,43 @@ describe('ServiceAccountImpersonationProvider', () => {
     expect(mockRequest).toHaveBeenCalledTimes(2); // Confirms a new fetch
 
     vi.useRealTimers();
+  });
+
+  it('should initialize GoogleAuth with the correct scopes', () => {
+    new ServiceAccountImpersonationProvider(defaultSAConfig);
+    expect(GoogleAuth).toHaveBeenCalledWith({
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+    });
+  });
+
+  it('should emit feedback with enhanced error message on failure', async () => {
+    const errorResponse = {
+      response: {
+        data: {
+          error: {
+            message: 'IAM_PERMISSION_DENIED',
+            code: 403,
+          },
+        },
+      },
+    };
+    mockRequest.mockRejectedValue(errorResponse);
+    const emitFeedbackSpy = vi.spyOn(coreEvents, 'emitFeedback');
+
+    const provider = new ServiceAccountImpersonationProvider(defaultSAConfig);
+    await provider.tokens();
+
+    expect(emitFeedbackSpy).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining(
+        'Failed to obtain impersonated authentication token: IAM_PERMISSION_DENIED',
+      ),
+    );
+    expect(emitFeedbackSpy).toHaveBeenCalledWith(
+      'error',
+      expect.stringContaining(
+        'Ensure the caller\'s identity has the "Service Account Token Creator" role granted on the target service account resource.',
+      ),
+    );
   });
 });

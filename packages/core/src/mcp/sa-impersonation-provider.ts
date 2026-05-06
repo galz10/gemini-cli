@@ -15,6 +15,7 @@ import { OAuthUtils, FIVE_MIN_BUFFER_MS } from './oauth-utils.js';
 import type { MCPServerConfig } from '../config/config.js';
 import type { McpAuthProvider } from './auth-provider.js';
 import { coreEvents } from '../utils/events.js';
+import { GcpUtils } from '../utils/gcpUtils.js';
 
 function createIamApiUrl(targetSA: string): string {
   return `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${encodeURIComponent(
@@ -113,16 +114,12 @@ export class ServiceAccountImpersonationProvider implements McpAuthProvider {
         return undefined;
       }
     } catch (e) {
-      const errorMessage =
-        e && typeof e === 'object' && 'response' in e && !!e.response
-          ? (e.response as { data?: { error?: { message?: string } } }).data
-              ?.error?.message || String(e)
-          : String(e);
+      const errorMessage = GcpUtils.extractErrorMessage(e);
 
       coreEvents.emitFeedback(
         'error',
         `Failed to obtain impersonated authentication token: ${errorMessage}\n\n` +
-          'Ensure the impersonating account has the "Service Account Token Creator" role on the target service account.',
+          'Ensure the caller\'s identity has the "Service Account Token Creator" role granted on the target service account resource.',
       );
       return undefined;
     }
