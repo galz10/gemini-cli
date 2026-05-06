@@ -303,6 +303,22 @@ describe('OAuthUtils', () => {
       ).rejects.toThrow(/does not match expected/);
     });
 
+    it('should reject partial path matches (near-miss)', async () => {
+      const mockResourceMetadataPrefix: OAuthProtectedResourceMetadata = {
+        resource: 'https://example.com/api',
+        authorization_servers: ['https://auth.example.com'],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResourceMetadataPrefix),
+      });
+
+      await expect(
+        OAuthUtils.discoverOAuthConfig('https://example.com/api-v2'),
+      ).rejects.toThrow(/does not match expected/);
+    });
+
     it('should accept equivalent root resources with and without trailing slash', async () => {
       mockFetch
         // fetchProtectedResourceMetadata

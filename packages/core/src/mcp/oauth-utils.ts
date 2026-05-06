@@ -418,8 +418,7 @@ export class OAuthUtils {
   ): boolean {
     const normalize = (resource: string): string => {
       try {
-        const url = new URL(resource);
-        return `${url.protocol}//${url.host}${url.pathname}`.replace(/\/$/, '');
+        return OAuthUtils.buildResourceParameter(resource).replace(/\/$/, '');
       } catch {
         return resource.replace(/\/$/, '');
       }
