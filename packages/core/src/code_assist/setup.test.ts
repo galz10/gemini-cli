@@ -20,7 +20,14 @@ import {
   OnboardingSuccessEvent,
 } from '../telemetry/index.js';
 
-vi.mock('../code_assist/server.js');
+vi.mock('../code_assist/server.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../code_assist/server.js')>();
+  return {
+    ...actual,
+    CodeAssistServer: vi.fn(),
+  };
+});
 vi.mock('../telemetry/index.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../telemetry/index.js')>();
   return {
@@ -398,6 +405,74 @@ describe('setupUser', () => {
       await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
         'LoadCodeAssist returned empty response',
       );
+    });
+
+    describe('Cloud Code Private API disabled fallback', () => {
+      it('should fall back to STANDARD tier if 403 Permission Denied occurs', async () => {
+        const error403 = new Error('Permission denied') as Error & {
+          response: { status: number };
+        };
+        error403.response = { status: 403 };
+        mockLoad.mockRejectedValue(error403);
+
+        vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+        const result = await setupUser({} as OAuth2Client, mockConfig);
+
+        expect(result).toEqual({
+          projectId: 'test-project',
+          userTier: UserTierId.STANDARD,
+          userTierName: 'Standard',
+          hasOnboardedPreviously: true,
+        });
+      });
+
+      it('should fall back to STANDARD tier if API is disabled in message', async () => {
+        const errorDisabled = new Error(
+          'Cloud Code Private API (cloudcode-pa.googleapis.com) has not been used in project 123 before or it is disabled.',
+        );
+        mockLoad.mockRejectedValue(errorDisabled);
+
+        vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+        const result = await setupUser({} as OAuth2Client, mockConfig);
+
+        expect(result).toEqual({
+          projectId: 'test-project',
+          userTier: UserTierId.STANDARD,
+          userTierName: 'Standard',
+          hasOnboardedPreviously: true,
+        });
+      });
+
+      it('should fall back to STANDARD tier if API has not been used', async () => {
+        const errorNotUsed = new Error(
+          'Cloud Code Private API has not been used in project 123 before.',
+        );
+        mockLoad.mockRejectedValue(errorNotUsed);
+
+        vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'test-project');
+        const result = await setupUser({} as OAuth2Client, mockConfig);
+
+        expect(result).toEqual({
+          projectId: 'test-project',
+          userTier: UserTierId.STANDARD,
+          userTierName: 'Standard',
+          hasOnboardedPreviously: true,
+        });
+      });
+
+      it('should use undefined projectId in fallback if no project ID is provided', async () => {
+        const error403 = new Error('Permission denied') as Error & {
+          response: { status: number };
+        };
+        error403.response = { status: 403 };
+        mockLoad.mockRejectedValue(error403);
+
+        vi.stubEnv('GOOGLE_CLOUD_PROJECT', '');
+        const result = await setupUser({} as OAuth2Client, mockConfig);
+
+        expect(result.projectId).toBeUndefined();
+        expect(result.userTier).toBe(UserTierId.STANDARD);
+      });
     });
   });
 });

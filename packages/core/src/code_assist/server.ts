@@ -583,7 +583,7 @@ function isVpcScAffectedUser(error: unknown): boolean {
   return false;
 }
 
-function isPermissionDeniedError(error: unknown): boolean {
+export function isPermissionDeniedError(error: unknown): boolean {
   return (
     !!error &&
     typeof error === 'object' &&

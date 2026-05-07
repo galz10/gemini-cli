@@ -13,7 +13,11 @@ import {
   type LoadCodeAssistResponse,
   type OnboardUserRequest,
 } from './types.js';
-import { CodeAssistServer, type HttpOptions } from './server.js';
+import {
+  CodeAssistServer,
+  isPermissionDeniedError,
+  type HttpOptions,
+} from './server.js';
 import type { AuthClient } from 'google-auth-library';
 import { ChangeAuthRequestedError } from '../utils/errors.js';
 import { ValidationRequiredError } from '../utils/googleQuotaErrors.js';
@@ -59,7 +63,7 @@ export class IneligibleTierError extends Error {
 }
 
 export interface UserData {
-  projectId: string;
+  projectId: string | undefined;
   userTier: UserTierId;
   userTierName?: string;
   paidTier?: GeminiUserTier;
@@ -174,24 +178,18 @@ async function _doSetupUser(
       // allow the authentication flow to proceed with standard Gemini APIs.
       const errorMessage = e instanceof Error ? e.message : String(e);
       const isApiDisabled =
-        errorMessage.includes('cloudcode-pa.googleapis.com') ||
-        errorMessage.includes('not been used') ||
-        errorMessage.includes('disabled') ||
-        (typeof e === 'object' &&
-          !!e &&
-          'response' in e &&
-          typeof e.response === 'object' &&
-          !!e.response &&
-          'status' in e.response &&
-          e.response.status === 403);
+        isPermissionDeniedError(e) ||
+        (errorMessage.includes('cloudcode-pa.googleapis.com') &&
+          errorMessage.includes('disabled')) ||
+        errorMessage.includes('not been used');
 
       if (isApiDisabled) {
         debugLogger.warn(
-          'Cloud Code Private API is disabled or inaccessible. Falling back to standard Gemini APIs.',
+          `Cloud Code Private API is disabled or inaccessible for project "${projectId}". Falling back to standard Gemini APIs.`,
           e,
         );
         return {
-          projectId: projectId ?? 'default',
+          projectId,
           userTier: UserTierId.STANDARD,
           userTierName: 'Standard',
           hasOnboardedPreviously: true,
