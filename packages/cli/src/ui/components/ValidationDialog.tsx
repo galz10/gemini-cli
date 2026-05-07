@@ -92,7 +92,12 @@ export function ValidationDialog({
           }
 
           try {
-            await openBrowserSecurely(validationLink);
+            await openBrowserSecurely(validationLink, (error) => {
+              setErrorMessage(
+                `Browser error after launch: ${error instanceof Error ? error.message : String(error)}`,
+              );
+              setState('error');
+            });
             setState('waiting');
           } catch (error) {
             setErrorMessage(

@@ -14,7 +14,7 @@ import {
   type MockInstance,
   afterEach,
 } from 'vitest';
-import { EventEmitter } from 'node:events';
+import { type ChildProcess } from 'node:child_process';
 import { handleFallback } from './handler.js';
 import type { Config } from '../config/config.js';
 import type { ModelAvailabilityService } from '../availability/modelAvailabilityService.js';
@@ -250,9 +250,10 @@ describe('handleFallback', () => {
 
     it('should launch upgrade flow and avoid fallback mode when handler returns "upgrade"', async () => {
       policyHandler.mockResolvedValue('upgrade');
-      vi.mocked(openBrowserSecurely).mockResolvedValue(
-        new EventEmitter() as unknown as ChildProcess,
-      );
+      vi.mocked(openBrowserSecurely).mockResolvedValue({
+        on: vi.fn(),
+        unref: vi.fn(),
+      } as unknown as ChildProcess);
 
       const result = await handleFallback(
         policyConfig,
@@ -263,6 +264,7 @@ describe('handleFallback', () => {
       expect(result).toBe(false);
       expect(openBrowserSecurely).toHaveBeenCalledWith(
         'https://goo.gle/set-up-gemini-code-assist',
+        expect.any(Function),
       );
       expect(policyConfig.activateFallbackMode).not.toHaveBeenCalled();
     });

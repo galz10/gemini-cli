@@ -15,6 +15,7 @@ import {
   shouldShowEmptyWalletMenu,
   openBrowserSecurely,
   shouldLaunchBrowser,
+  debugLogger,
   logBillingEvent,
   OverageMenuShownEvent,
   OverageOptionSelectedEvent,
@@ -305,7 +306,10 @@ async function openG1Url(
     if (!shouldLaunchBrowser()) {
       return url;
     }
-    await openBrowserSecurely(url);
+    await openBrowserSecurely(url, (error) => {
+      // Ignore browser open errors after launch, but log them for debug
+      debugLogger.debug('Failed to open browser after process started:', error);
+    });
   } catch {
     // Ignore browser open errors
   }

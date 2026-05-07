@@ -59,7 +59,10 @@ describe('upgradeCommand', () => {
 
     await upgradeCommand.action(mockContext, '');
 
-    expect(openBrowserSecurely).toHaveBeenCalledWith(UPGRADE_URL_PAGE);
+    expect(openBrowserSecurely).toHaveBeenCalledWith(
+      UPGRADE_URL_PAGE,
+      expect.any(Function),
+    );
   });
 
   it('should return an error message when NOT logged in with Google', async () => {

@@ -301,12 +301,7 @@ async function initOauthClient(
       // Attempt to open the authentication URL in the default browser.
       // We do not use the `wait` option here because the main script's execution
       // is already paused by `loginCompletePromise`, which awaits the server callback.
-      const childProcess = await openBrowserSecurely(webLogin.authUrl);
-
-      // IMPORTANT: Attach an error handler to the returned child process.
-      // Without this, if spawning fails, it could emit an unhandled 'error' event,
-      // potentially causing the process to crash.
-      childProcess.on('error', (error) => {
+      await openBrowserSecurely(webLogin.authUrl, (error) => {
         coreEvents.emit(CoreEvent.UserFeedback, {
           severity: 'error',
           message:

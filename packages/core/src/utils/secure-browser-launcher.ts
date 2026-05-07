@@ -46,10 +46,14 @@ function validateUrl(url: string): void {
  * 3. Passing the URL as an argument rather than constructing a command string
  *
  * @param url The URL to open
+ * @param onError Optional callback for errors that occur after the process has started
  * @returns The child process of the browser
  * @throws Error if the URL is invalid or if opening the browser fails
  */
-export async function openBrowserSecurely(url: string): Promise<ChildProcess> {
+export async function openBrowserSecurely(
+  url: string,
+  onError?: (err: Error) => void,
+): Promise<ChildProcess> {
   // Validate the URL first
   validateUrl(url);
 
@@ -103,8 +107,22 @@ export async function openBrowserSecurely(url: string): Promise<ChildProcess> {
     stdio: 'ignore' as const,
   };
 
+  const trySpawn = (cmd: string, spawnArgs: string[]) => new Promise<ChildProcess>((resolve, reject) => {
+      try {
+        const cp = spawn(cmd, spawnArgs, options);
+        if (onError) {
+          cp.on('error', onError);
+        }
+        cp.on('error', reject);
+        // Use a microtask to allow the 'error' event to fire if it happens immediately
+        process.nextTick(() => resolve(cp));
+      } catch (error) {
+        reject(error);
+      }
+    });
+
   try {
-    const childProcess = spawn(command, args, options);
+    const childProcess = await trySpawn(command, args);
     childProcess.unref();
     return childProcess;
   } catch (error) {
@@ -125,7 +143,7 @@ export async function openBrowserSecurely(url: string): Promise<ChildProcess> {
 
       for (const fallbackCommand of fallbackCommands) {
         try {
-          const childProcess = spawn(fallbackCommand, [url], options);
+          const childProcess = await trySpawn(fallbackCommand, [url]);
           childProcess.unref();
           return childProcess; // Success!
         } catch {

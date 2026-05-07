@@ -213,7 +213,14 @@ export async function toggleDevToolsPanel(
     const url = await startDevToolsServer(config);
     if (shouldLaunchBrowser()) {
       try {
-        await openBrowserSecurely(url);
+        await openBrowserSecurely(url, (error) => {
+          debugLogger.warn(
+            'Failed to open browser after process started:',
+            error,
+          );
+          // If browser fails after launch, we can't easily open the drawer here
+          // because we already returned, but at least it's logged.
+        });
         // Browser opened successfully, don't open drawer.
         return;
       } catch (e) {

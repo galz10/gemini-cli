@@ -265,7 +265,12 @@ export class OAuth2AuthProvider extends BaseA2AAuthProvider {
     );
 
     try {
-      await openBrowserSecurely(authUrl);
+      await openBrowserSecurely(authUrl, (error) => {
+        debugLogger.warn(
+          'Failed to open browser after process started:',
+          getErrorMessage(error),
+        );
+      });
     } catch (error) {
       debugLogger.warn(
         'Failed to open browser automatically:',

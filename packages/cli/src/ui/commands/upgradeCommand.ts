@@ -6,6 +6,8 @@
 
 import {
   AuthType,
+  debugLogger,
+  getErrorMessage,
   openBrowserSecurely,
   shouldLaunchBrowser,
   UPGRADE_URL_PAGE,
@@ -54,12 +56,17 @@ export const upgradeCommand: SlashCommand = {
     }
 
     try {
-      await openBrowserSecurely(UPGRADE_URL_PAGE);
-    } catch (error) {
+      await openBrowserSecurely(UPGRADE_URL_PAGE, (error) => {
+        debugLogger.warn(
+          'Failed to open browser after process started:',
+          getErrorMessage(error),
+        );
+      });
+    } catch (err) {
       return {
         type: 'message',
         messageType: 'error',
-        content: `Failed to open upgrade page: ${error instanceof Error ? error.message : String(error)}`,
+        content: `Failed to open upgrade page: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
 

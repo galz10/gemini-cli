@@ -83,7 +83,11 @@ export function BannedAccountDialog({
         }
 
         try {
-          await openBrowserSecurely(appealUrl);
+          await openBrowserSecurely(appealUrl, (error) => {
+            setErrorMessage(
+              `Browser error after launch: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
         } catch {
           setErrorMessage(`Failed to open browser. Please visit: ${appealUrl}`);
         }

@@ -117,7 +117,12 @@ async function handleUpgrade() {
     return;
   }
   try {
-    await openBrowserSecurely(UPGRADE_URL_PAGE);
+    await openBrowserSecurely(UPGRADE_URL_PAGE, (error) => {
+      debugLogger.warn(
+        'Failed to open browser after process started:',
+        getErrorMessage(error),
+      );
+    });
   } catch (error) {
     debugLogger.warn(
       'Failed to open browser automatically:',
