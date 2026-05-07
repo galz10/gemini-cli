@@ -34,13 +34,19 @@ vi.mock('../utils/fetch.js', () => ({
   setGlobalProxyCA: vi.fn(),
 }));
 
-const mockConfig = {
-  getModel: vi.fn().mockReturnValue('gemini-pro'),
-  getProxy: vi.fn().mockReturnValue(undefined),
-  getProxyCA: vi.fn().mockReturnValue(undefined),
-  getUsageStatisticsEnabled: vi.fn().mockReturnValue(true),
-  getClientName: vi.fn().mockReturnValue(undefined),
-} as unknown as Config;
+const createMockConfig = (overrides: Partial<Config> = {}): Config => ({
+    getModel: vi.fn().mockReturnValue('gemini-pro'),
+    getProxy: vi.fn().mockReturnValue(undefined),
+    getProxyCA: vi.fn().mockReturnValue(undefined),
+    getUsageStatisticsEnabled: vi.fn().mockReturnValue(true),
+    getClientName: vi.fn().mockReturnValue(undefined),
+    getGemini31Launched: vi.fn().mockResolvedValue(false),
+    getGemini31FlashLiteLaunched: vi.fn().mockResolvedValue(false),
+    getHasAccessToPreviewModel: vi.fn().mockReturnValue(true),
+    ...overrides,
+  } as unknown as Config);
+
+const mockConfig = createMockConfig();
 
 describe('createContentGenerator', () => {
   beforeEach(() => {
@@ -882,14 +888,10 @@ describe('createContentGenerator', () => {
 
   it('should read proxy CA from file and set it globally when config.proxyCA is set', async () => {
     const caContent = Buffer.from('test-ca-content');
-    vi.mocked(fs.readFileSync).mockReturnValue(caContent);
-    const mockConfigWithCA = {
-      getModel: vi.fn().mockReturnValue('gemini-pro'),
-      getProxy: vi.fn().mockReturnValue(undefined),
+    vi.mocked(fs.promises.readFile).mockResolvedValue(caContent);
+    const mockConfigWithCA = createMockConfig({
       getProxyCA: vi.fn().mockReturnValue('/path/to/cert.pem'),
-      getUsageStatisticsEnabled: () => false,
-      getClientName: vi.fn().mockReturnValue(undefined),
-    } as unknown as Config;
+    });
 
     await createContentGenerator(
       {
@@ -900,8 +902,30 @@ describe('createContentGenerator', () => {
       mockConfigWithCA,
     );
 
-    expect(fs.readFileSync).toHaveBeenCalledWith('/path/to/cert.pem');
+    expect(fs.promises.readFile).toHaveBeenCalledWith('/path/to/cert.pem');
     expect(setGlobalProxyCA).toHaveBeenCalledWith(caContent);
+  });
+
+  it('should throw a descriptive error if the proxyCA file is missing or unreadable', async () => {
+    vi.mocked(fs.promises.readFile).mockRejectedValue(
+      new Error('File not found'),
+    );
+    const mockConfigWithCA = createMockConfig({
+      getProxyCA: vi.fn().mockReturnValue('/path/to/cert.pem'),
+    });
+
+    await expect(
+      createContentGenerator(
+        {
+          apiKey: 'test-api-key',
+          authType: AuthType.USE_GEMINI,
+          proxyCA: '/path/to/cert.pem',
+        },
+        mockConfigWithCA,
+      ),
+    ).rejects.toThrow(
+      'Failed to read proxy CA from /path/to/cert.pem: File not found',
+    );
   });
 });
 

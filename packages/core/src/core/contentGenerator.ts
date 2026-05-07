@@ -203,17 +203,23 @@ export async function createContentGenerator(
     }
     const version = await getVersion();
 
+    /**
+     * NOTE: This is a global side effect that modifies the global undici dispatcher.
+     * While appropriate for a standalone CLI, SDK consumers should be aware that
+     * this affects all network connections in the process.
+     */
     if (config.proxyCA) {
       try {
-        const ca = fs.readFileSync(config.proxyCA);
+        const ca = await fs.promises.readFile(config.proxyCA);
         const { setGlobalProxyCA } = await import('../utils/fetch.js');
         setGlobalProxyCA(ca);
         debugLogger.log(`Using custom proxy CA from: ${config.proxyCA}`);
       } catch (error) {
-        debugLogger.error(
-          `Failed to read proxy CA from ${config.proxyCA}:`,
-          error,
-        );
+        const message = `Failed to read proxy CA from ${config.proxyCA}: ${
+          error instanceof Error ? error.message : String(error)
+        }`;
+        debugLogger.error(message, error);
+        throw new Error(message, { cause: error });
       }
     }
 

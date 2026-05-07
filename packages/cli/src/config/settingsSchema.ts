@@ -1954,7 +1954,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: false,
             description:
-              'When enabled, forces DNS resolution to prefer IPv4 over IPv6. Useful for certain VPN and proxy configurations.',
+              'When enabled, forces DNS resolution to prefer IPv4 over IPv6. Useful for certain VPN and proxy configurations. Takes precedence over advanced.dnsResolutionOrder.',
           },
           proxyCA: {
             type: 'string',
@@ -1963,7 +1963,7 @@ const SETTINGS_SCHEMA = {
             requiresRestart: true,
             default: undefined as string | undefined,
             description:
-              'Path to a custom CA certificate (PEM format) to be used when connecting through an intercepting proxy.',
+              'Path to a custom CA certificate (PEM format) for TLS verification (e.g., for intercepting proxies or private CAs).',
           },
         },
       },
