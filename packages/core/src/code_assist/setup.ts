@@ -157,14 +157,16 @@ async function _doSetupUser(
   const inCloudShell = isCloudShell();
   const coreClientMetadata: ClientMetadata = {
     ideType: inCloudShell ? 'CLOUD_SHELL' : 'GEMINI_CLI',
-    platform: inCloudShell ? 'CLOUD_SHELL' : 'PLATFORM_UNSPECIFIED',
+    platform: 'PLATFORM_UNSPECIFIED',
     pluginType: 'GEMINI',
   };
 
   const validationHandler = config.getValidationHandler();
 
-  let loadRes: LoadCodeAssistResponse;
+  let loadRes: LoadCodeAssistResponse | undefined;
   while (true) {
+    let currentRes: LoadCodeAssistResponse | undefined;
+
     // If we are in Cloud Shell, we first try to fetch entitlements WITHOUT a project ID
     // to see if the user has a personal "Google AI Pro" plan. This avoids being
     // restricted to the environment's default standard tier (e.g. cloudshell-gca).
@@ -178,36 +180,44 @@ async function _doSetupUser(
           },
         });
         if (personalRes.paidTier?.id === UserTierId.PRO) {
+          currentRes = personalRes;
           debugLogger.log(
             'Detected personal Google AI Pro plan in Cloud Shell.',
           );
-          loadRes = personalRes;
           // Use a dummy project ID if none returned, or the environment one if appropriate.
           // For PRO models, the project ID is often ignored if authenticated correctly.
-          if (!loadRes.cloudaicompanionProject) {
-            loadRes.cloudaicompanionProject = projectId;
+          if (!currentRes.cloudaicompanionProject) {
+            currentRes.cloudaicompanionProject = projectId;
           }
-          break;
         }
       } catch (e) {
+        if (e instanceof ValidationRequiredError) {
+          // If the personal account needs validation, we want to handle it.
+          // We set currentRes so it gets validated by the shared logic below.
+          // But wait, caServer.loadCodeAssist doesn't return the response if it throws.
+          // Actually, our caServer.loadCodeAssist doesn't throw ValidationRequiredError,
+          // it's validateLoadCodeAssistResponse that does.
+          // However, we should be safe and catch it anyway if it ever does.
+        }
         debugLogger.debug(
-          'Failed to fetch personal entitlements in Cloud Shell:',
-          e,
+          `Failed to fetch personal entitlements in Cloud Shell (falling back to standard flow): ${e instanceof Error ? e.message : e}`,
         );
-        // Fallback to standard flow
       }
     }
 
-    loadRes = await caServer.loadCodeAssist({
-      cloudaicompanionProject: projectId,
-      metadata: {
-        ...coreClientMetadata,
-        duetProject: projectId,
-      },
-    });
+    if (!currentRes) {
+      currentRes = await caServer.loadCodeAssist({
+        cloudaicompanionProject: projectId,
+        metadata: {
+          ...coreClientMetadata,
+          duetProject: projectId,
+        },
+      });
+    }
 
     try {
-      validateLoadCodeAssistResponse(loadRes);
+      validateLoadCodeAssistResponse(currentRes);
+      loadRes = currentRes;
       break;
     } catch (e) {
       if (e instanceof ValidationRequiredError && validationHandler) {

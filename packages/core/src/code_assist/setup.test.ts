@@ -20,7 +20,10 @@ import {
   OnboardingSuccessEvent,
 } from '../telemetry/index.js';
 
+import { isCloudShell } from '../ide/detect-ide.js';
+
 vi.mock('../code_assist/server.js');
+vi.mock('../ide/detect-ide.js');
 vi.mock('../telemetry/index.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../telemetry/index.js')>();
   return {
@@ -75,6 +78,8 @@ describe('setupUser', () => {
           getOperation: mockGetOperation,
         }) as unknown as CodeAssistServer,
     );
+
+    vi.mocked(isCloudShell).mockReturnValue(false);
 
     mockValidationHandler = vi.fn();
     mockConfig = {
@@ -397,6 +402,112 @@ describe('setupUser', () => {
 
       await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
         'LoadCodeAssist returned empty response',
+      );
+    });
+  });
+
+  describe('Cloud Shell personal entitlement', () => {
+    const mockProTier: GeminiUserTier = {
+      id: UserTierId.PRO,
+      name: 'Pro',
+      description: 'Pro tier',
+    };
+
+    it('should prioritize personal PRO tier in Cloud Shell', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project');
+      vi.mocked(isCloudShell).mockReturnValue(true);
+
+      // First call (personal check)
+      mockLoad.mockResolvedValueOnce({
+        paidTier: mockProTier,
+        currentTier: mockProTier,
+        cloudaicompanionProject: null,
+      });
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+
+      expect(mockLoad).toHaveBeenCalledTimes(1);
+      expect(mockLoad).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cloudaicompanionProject: undefined,
+          metadata: expect.objectContaining({
+            ideType: 'CLOUD_SHELL',
+            duetProject: undefined,
+          }),
+        }),
+      );
+      expect(result.userTier).toBe(UserTierId.PRO);
+      expect(result.projectId).toBe('env-project');
+    });
+
+    it('should fallback to environment tier if personal check fails', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project');
+      vi.mocked(isCloudShell).mockReturnValue(true);
+
+      // First call (personal check) fails
+      mockLoad.mockRejectedValueOnce(new Error('Personal check failed'));
+      // Second call (standard check) succeeds
+      mockLoad.mockResolvedValueOnce({
+        currentTier: mockPaidTier,
+        cloudaicompanionProject: 'env-project',
+      });
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+
+      expect(mockLoad).toHaveBeenCalledTimes(2);
+      expect(result.userTier).toBe(UserTierId.STANDARD);
+      expect(result.projectId).toBe('env-project');
+    });
+
+    it('should fallback to environment tier if personal check returns non-PRO tier', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project');
+      vi.mocked(isCloudShell).mockReturnValue(true);
+
+      // First call (personal check) returns standard tier
+      mockLoad.mockResolvedValueOnce({
+        paidTier: mockPaidTier,
+        currentTier: mockPaidTier,
+        cloudaicompanionProject: null,
+      });
+      // Second call (standard check) succeeds
+      mockLoad.mockResolvedValueOnce({
+        currentTier: mockPaidTier,
+        cloudaicompanionProject: 'env-project',
+      });
+
+      const result = await setupUser({} as OAuth2Client, mockConfig);
+
+      expect(mockLoad).toHaveBeenCalledTimes(2);
+      expect(result.userTier).toBe(UserTierId.STANDARD);
+    });
+
+    it('should not skip validation for personal PRO entitlement', async () => {
+      vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project');
+      vi.mocked(isCloudShell).mockReturnValue(true);
+
+      mockValidationHandler.mockResolvedValue(null);
+
+      // First call (personal check) returns PRO but requires validation
+      mockLoad.mockResolvedValueOnce({
+        paidTier: mockProTier,
+        currentTier: null,
+        ineligibleTiers: [
+          {
+            reasonMessage: 'Verify please',
+            reasonCode: 'VALIDATION_REQUIRED',
+            tierId: UserTierId.PRO,
+            validationUrl: 'https://verify',
+          },
+        ],
+      });
+
+      await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
+        ValidationCancelledError,
+      );
+
+      expect(mockValidationHandler).toHaveBeenCalledWith(
+        'https://verify',
+        'Verify please',
       );
     });
   });

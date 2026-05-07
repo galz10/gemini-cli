@@ -32,8 +32,7 @@ export type ClientMetadataPlatform =
   | 'DARWIN_ARM64'
   | 'LINUX_AMD64'
   | 'LINUX_ARM64'
-  | 'WINDOWS_AMD64'
-  | 'CLOUD_SHELL';
+  | 'WINDOWS_AMD64';
 export type ClientMetadataPluginType =
   | 'PLUGIN_UNSPECIFIED'
   | 'CLOUD_CODE'
