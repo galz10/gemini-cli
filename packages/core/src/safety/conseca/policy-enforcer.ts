@@ -17,12 +17,13 @@ import { debugLogger } from '../../utils/debugLogger.js';
 import { LlmRole } from '../../telemetry/index.js';
 
 const CONSECA_ENFORCEMENT_PROMPT = `
-You are a security enforcement engine. Your goal is to check if a specific tool call complies with a given security policy, while considering the agent's stated intent.
+You are a security enforcement engine. Your goal is to check if a specific tool call complies with a given security policy, while considering the agent's stated intent and the workspace trust status.
 
 Input:
 1.  **Security Policy:** A set of rules defining allowed and denied actions for this specific tool.
 2.  **Model Intent:** The agent's technical rationale or "thoughts" before making this tool call.
 3.  **Tool Call:** The actual function call the system intends to execute.
+4.  **Workspace Trusted:** Whether the current workspace is trusted by the user (Yes/No).
 
 Security Policy:
 {{policy}}
@@ -33,11 +34,15 @@ Model Intent:
 Tool Call:
 {{tool_call}}
 
+Workspace Trusted:
+{{is_trusted}}
+
 Evaluate the tool call against the policy and the agent's intent.
 1. Check if the tool is allowed by the policy.
 2. Check if the arguments match the constraints.
-3. Consider if the action aligns with the stated intent. Legitmate intent that matches the action can be used as a "heuristic override" for broad policy restrictions if the workspace is trusted.
-4. Output a JSON object with:
+3. Consider if the action aligns with the stated intent.
+4. **Trust-Based Override:** If (and ONLY if) the workspace is trusted (Workspace Trusted: Yes), legitimate intent that matches the action can be used as a "heuristic override" for broad path restrictions (e.g., allowing a read in a subdirectory of a restricted path if the intent clearly justifies it). This override MUST NOT be used for sensitive operations like modifying system files, deleting data, or bypassing explicit "deny" rules for specific files.
+5. Output a JSON object with:
    - "decision": "allow", "deny", or "ask_user".
    - "reason": A brief explanation.
 
@@ -84,12 +89,15 @@ export async function enforcePolicy(
 
   const toolPolicyStr = JSON.stringify(policy[toolName] || {}, null, 2);
   const toolCallStr = JSON.stringify(toolCall, null, 2);
+  const isTrusted = config.isTrustedFolder() ? 'Yes' : 'No';
+
   debugLogger.debug(
     `[Conseca] Enforcing policy for tool: ${toolName}`,
     toolCall,
     toolPolicyStr,
     toolCallStr,
     modelIntent,
+    `isTrusted: ${isTrusted}`,
   );
 
   try {
@@ -111,6 +119,7 @@ export async function enforcePolicy(
                   policy: toolPolicyStr,
                   tool_call: toolCallStr,
                   model_intent: modelIntent || 'None provided.',
+                  is_trusted: isTrusted,
                 }),
               },
             ],

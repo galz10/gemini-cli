@@ -161,7 +161,7 @@ export class ConsecaSafetyChecker implements InProcessChecker {
     if (prompt) {
       return prompt;
     }
-    debugLogger.debug(`[Conseca] extractUserPrompt failed.`);
+    debugLogger.debug(`[Conseca] userPrompt not found in last turn.`);
     return null;
   }
 
@@ -170,7 +170,7 @@ export class ConsecaSafetyChecker implements InProcessChecker {
     if (lastTurn?.model.text) {
       return lastTurn.model.text;
     }
-    debugLogger.debug(`[Conseca] extractModelRationale failed.`);
+    debugLogger.debug(`[Conseca] modelRationale not found in last turn.`);
     return null;
   }
 

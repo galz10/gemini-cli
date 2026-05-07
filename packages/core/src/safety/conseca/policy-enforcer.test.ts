@@ -24,6 +24,7 @@ describe('policy_enforcer', () => {
 
     mockConfig = {
       getContentGenerator: vi.fn().mockReturnValue(mockContentGenerator),
+      isTrustedFolder: vi.fn().mockReturnValue(false),
     } as unknown as Config;
   });
 
@@ -163,5 +164,60 @@ describe('policy_enforcer', () => {
     if (result.decision === SafetyCheckDecision.ALLOW) {
       expect(result.error).toContain('JSON Parse Error');
     }
+  });
+
+  it('should pass workspace trust status and model intent to the prompt', async () => {
+    vi.mocked(mockConfig.isTrustedFolder).mockReturnValue(true);
+    mockContentGenerator.generateContent = vi.fn().mockResolvedValue({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  decision: 'allow',
+                  reason: 'Trusted override',
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const toolCall: FunctionCall = {
+      name: 'readFile',
+      args: { path: '/sensitive/data' },
+    };
+    const policy = {
+      readFile: {
+        permissions: SafetyCheckDecision.DENY,
+        constraints: 'Deny all sensitive paths',
+        rationale: 'Security',
+      },
+    };
+    const rationale =
+      'I need to read this for a legitimate reason in a trusted workspace';
+
+    await enforcePolicy(policy, toolCall, mockConfig, rationale);
+
+    expect(mockContentGenerator.generateContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contents: expect.arrayContaining([
+          expect.objectContaining({
+            parts: expect.arrayContaining([
+              expect.objectContaining({
+                text: expect.stringContaining('Workspace Trusted:\nYes'),
+              }),
+              expect.objectContaining({
+                text: expect.stringContaining(`Model Intent:\n${rationale}`),
+              }),
+            ]),
+          }),
+        ]),
+      }),
+      'conseca-policy-enforcement',
+      LlmRole.SUBAGENT,
+    );
   });
 });
