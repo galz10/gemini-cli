@@ -51,6 +51,20 @@ import { getConsentForOauth } from '../utils/authConsent.js';
 
 export const authEvents = new EventEmitter();
 
+async function persistTokens(tokens: Credentials) {
+  try {
+    const useEncryptedStorage = getUseEncryptedStorageFlag();
+    if (useEncryptedStorage) {
+      await OAuthCredentialStorage.saveCredentials(tokens);
+    } else {
+      await cacheCredentials(tokens);
+    }
+    await triggerPostAuthCallbacks(tokens);
+  } catch (error) {
+    debugLogger.error('Failed to save tokens:', error);
+  }
+}
+
 async function triggerPostAuthCallbacks(tokens: Credentials) {
   // Construct a JWTInput object to pass to callbacks, as this is the
   // type expected by the downstream Google Cloud client libraries.
@@ -109,6 +123,11 @@ function getUseEncryptedStorageFlag() {
   return process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] === 'true';
 }
 
+const tokenListeners = new WeakMap<
+  OAuth2Client,
+  (tokens: Credentials) => void
+>();
+
 async function initOauthClient(
   authType: AuthType,
   config: Config,
@@ -143,7 +162,6 @@ async function initOauthClient(
       proxy: config.getProxy(),
     },
   });
-  const useEncryptedStorage = getUseEncryptedStorageFlag();
 
   if (
     process.env['GOOGLE_GENAI_USE_GCA'] &&
@@ -156,22 +174,11 @@ async function initOauthClient(
     return client;
   }
 
-  client.on('tokens', (tokens: Credentials) => {
-    // Fire and forget the background save, but we will ALSO manually call it
-    // during the interactive flow to ensure it's awaited.
-    void (async () => {
-      try {
-        if (useEncryptedStorage) {
-          await OAuthCredentialStorage.saveCredentials(tokens);
-        } else {
-          await cacheCredentials(tokens);
-        }
-        await triggerPostAuthCallbacks(tokens);
-      } catch (error) {
-        debugLogger.error('Failed to save tokens in background:', error);
-      }
-    })();
-  });
+  const tokenListener = (tokens: Credentials) => {
+    void persistTokens(tokens);
+  };
+  client.on('tokens', tokenListener);
+  tokenListeners.set(client, tokenListener);
 
   if (credentials) {
     client.setCredentials(credentials as Credentials);
@@ -473,6 +480,13 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
     }
 
     try {
+      // Temporarily remove the 'tokens' listener to prevent double-saving
+      // during this manual flow where we explicitly await persistence.
+      const tokenListener = tokenListeners.get(client);
+      if (tokenListener) {
+        client.off('tokens', tokenListener);
+      }
+
       const { tokens } = await client.getToken({
         code,
         codeVerifier: codeVerifier.codeVerifier,
@@ -481,13 +495,12 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
       client.setCredentials(tokens);
 
       // Manually await token persistence to ensure it's saved before returning
-      const useEncryptedStorage = getUseEncryptedStorageFlag();
-      if (useEncryptedStorage) {
-        await OAuthCredentialStorage.saveCredentials(tokens);
-      } else {
-        await cacheCredentials(tokens);
+      await persistTokens(tokens);
+
+      // Restore listener
+      if (tokenListener) {
+        client.on('tokens', tokenListener);
       }
-      await triggerPostAuthCallbacks(tokens);
     } catch (error) {
       writeToStderr(
         'Failed to authenticate with authorization code:' +
@@ -505,19 +518,26 @@ async function authWithUserCode(client: OAuth2Client): Promise<boolean> {
     // Add a mandatory pause to avoid race conditions with UI re-initialization
     // and terminal state changes in headless environments.
     writeToStdout('\nAuthentication successful! Press any key to continue...');
-    await new Promise<void>((resolve) => {
-      const rl = readline.createInterface({
-        input: process.stdin,
-        terminal: true,
+    if (process.stdin.isTTY) {
+      await new Promise<void>((resolve) => {
+        process.stdin.setRawMode(true);
+        process.stdin.resume();
+        process.stdin.once('data', (data) => {
+          process.stdin.setRawMode(false);
+          // If Ctrl+C was pressed, we should probably handle it, but for a "press any key"
+          // we just continue and let the next cycle handle any cancellation if needed.
+          // Or better, check for Ctrl+C here too.
+          if (data.length === 1 && data[0] === 0x03) {
+            resolve(); // Still resolve to continue cleanup, or throw?
+            // Usually "press any key" is just a pause.
+          }
+          resolve();
+        });
       });
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      process.stdin.once('data', () => {
-        process.stdin.setRawMode(false);
-        rl.close();
-        resolve();
-      });
-    });
+    } else {
+      // Non-TTY: skip the "press any key" pause
+      writeToStdout('\n');
+    }
 
     return true;
   } catch (err) {

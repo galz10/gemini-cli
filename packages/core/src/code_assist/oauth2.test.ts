@@ -34,7 +34,7 @@ import open from 'open';
 import crypto from 'node:crypto';
 import * as os from 'node:os';
 import { AuthType } from '../core/contentGenerator.js';
-import type { Config } from '../config/config.js';
+import { Config, type ConfigParameters } from '../config/config.js';
 import readline from 'node:readline';
 import { FORCE_ENCRYPTED_FILE_ENV_VAR } from '../mcp/token-storage/index.js';
 import { GEMINI_DIR, homedir as pathsHomedir } from '../utils/paths.js';
@@ -105,19 +105,42 @@ vi.mock('../mcp/token-storage/hybrid-token-storage.js', () => ({
   })),
 }));
 
-const mockConfig = {
-  getNoBrowser: () => false,
-  getProxy: () => 'http://test.proxy.com:8080',
-  isBrowserLaunchSuppressed: () => false,
-  getAcpMode: () => false,
-  isInteractive: () => true,
-} as unknown as Config;
+const createMockConfig = (
+  overrides: Partial<ConfigParameters> = {},
+): Config => new Config({
+    sessionId: 'test-session',
+    targetDir: '/test/dir',
+    debugMode: false,
+    model: 'test-model',
+    cwd: '/test/cwd',
+    getNoBrowser: () => false,
+    getProxy: () => 'http://test.proxy.com:8080',
+    isBrowserLaunchSuppressed: () => false,
+    getAcpMode: () => false,
+    isInteractive: () => true,
+    ...overrides,
+  } as ConfigParameters);
+
+let mockConfig: Config;
 
 // Mock fetch globally
 global.fetch = vi.fn();
 
 describe('oauth2', () => {
+  let tempHomeDir: string;
+
   beforeEach(() => {
+    tempHomeDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'gemini-cli-test-home-'),
+    );
+    vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
+    vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
+
+    mockConfig = createMockConfig({
+      targetDir: tempHomeDir,
+      cwd: tempHomeDir,
+    });
+
     vi.mocked(isHeadlessMode).mockReturnValue(false);
     (readline.createInterface as Mock).mockReturnValue({
       question: vi.fn((_query, callback) => callback('')),
@@ -130,22 +153,16 @@ describe('oauth2', () => {
     });
   });
 
-  describe('with encrypted flag false', () => {
-    let tempHomeDir: string;
+  afterEach(() => {
+    fs.rmSync(tempHomeDir, { recursive: true, force: true });
+    vi.clearAllMocks();
+    resetOauthClientForTesting();
+    vi.unstubAllEnvs();
+  });
 
+  describe('with encrypted flag false', () => {
     beforeEach(() => {
       process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] = 'false';
-      tempHomeDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'gemini-cli-test-home-'),
-      );
-      vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
-      vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
-    });
-    afterEach(() => {
-      fs.rmSync(tempHomeDir, { recursive: true, force: true });
-      vi.clearAllMocks();
-      resetOauthClientForTesting();
-      vi.unstubAllEnvs();
     });
 
     it('should perform a web login', async () => {
@@ -175,6 +192,9 @@ describe('oauth2', () => {
             tokensListener = listener;
           }
         }),
+        off: vi.fn(),
+        listeners: vi.fn().mockReturnValue([]),
+        removeAllListeners: vi.fn(),
       } as unknown as OAuth2Client;
       vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -371,7 +391,10 @@ describe('oauth2', () => {
         generateCodeVerifierAsync: mockGenerateCodeVerifierAsync,
         getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
         on: vi.fn(),
+        off: vi.fn(),
         credentials: {},
+        listeners: vi.fn().mockReturnValue([]),
+        removeAllListeners: vi.fn(),
       } as unknown as OAuth2Client;
       mockOAuth2Client.setCredentials = vi.fn().mockImplementation((creds) => {
         mockOAuth2Client.credentials = creds;
@@ -388,6 +411,11 @@ describe('oauth2', () => {
       // Mock process.stdin methods for the "Press any key" pause
       const stdin = process.stdin as unknown as NodeJS.ReadStream;
       const originalSetRawMode = stdin.setRawMode;
+      const originalIsTTY = stdin.isTTY;
+      Object.defineProperty(stdin, 'isTTY', {
+        value: true,
+        configurable: true,
+      });
       stdin.setRawMode = vi.fn().mockReturnValue(stdin);
       const setRawModeSpy = vi.mocked(stdin.setRawMode);
 
@@ -434,8 +462,81 @@ describe('oauth2', () => {
       expect(setRawModeSpy).toHaveBeenCalledWith(false);
 
       stdin.setRawMode = originalSetRawMode;
+      Object.defineProperty(stdin, 'isTTY', {
+        value: originalIsTTY,
+        configurable: true,
+      });
       resumeSpy.mockRestore();
       onceSpy.mockRestore();
+    });
+
+    it('should skip "Press any key" in non-TTY environment', async () => {
+      const mockConfigWithNoBrowser = {
+        getNoBrowser: () => true,
+        getProxy: () => 'http://test.proxy.com:8080',
+        isBrowserLaunchSuppressed: () => true,
+        isInteractive: () => true,
+      } as unknown as Config;
+
+      const mockCodeVerifier = {
+        codeChallenge: 'test-challenge',
+        codeVerifier: 'test-verifier',
+      };
+      const mockAuthUrl = 'https://example.com/auth-user-code';
+      const mockCode = 'test-user-code';
+      const mockTokens = {
+        access_token: 'test-access-token-user-code',
+        refresh_token: 'test-refresh-token-user-code',
+      };
+
+      const mockOAuth2Client = {
+        generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
+        getToken: vi.fn().mockResolvedValue({ tokens: mockTokens }),
+        generateCodeVerifierAsync: vi.fn().mockResolvedValue(mockCodeVerifier),
+        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
+        on: vi.fn(),
+        off: vi.fn(),
+        credentials: {},
+        listeners: vi.fn().mockReturnValue([]),
+        removeAllListeners: vi.fn(),
+      } as unknown as OAuth2Client;
+      mockOAuth2Client.setCredentials = vi.fn().mockImplementation((creds) => {
+        mockOAuth2Client.credentials = creds;
+      });
+      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
+
+      (readline.createInterface as Mock).mockReturnValue({
+        question: vi.fn((_query, callback) => callback(mockCode)),
+        close: vi.fn(),
+        on: vi.fn(),
+      });
+
+      // Mock process.stdin.isTTY to false
+      const stdin = process.stdin as unknown as NodeJS.ReadStream;
+      const originalIsTTY = stdin.isTTY;
+      Object.defineProperty(stdin, 'isTTY', {
+        value: false,
+        configurable: true,
+      });
+
+      const setRawModeSpy = vi
+        .fn<[boolean], NodeJS.ReadStream>()
+        .mockReturnValue(stdin);
+      const originalSetRawMode = stdin.setRawMode;
+      stdin.setRawMode = setRawModeSpy as typeof originalSetRawMode;
+
+      await getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfigWithNoBrowser);
+
+      // Verify setRawMode was NOT called
+      expect(setRawModeSpy).not.toHaveBeenCalled();
+      expect(vi.mocked(writeToStdout)).toHaveBeenCalledWith('\n');
+
+      // Cleanup
+      stdin.setRawMode = originalSetRawMode;
+      Object.defineProperty(stdin, 'isTTY', {
+        value: originalIsTTY,
+        configurable: true,
+      });
     });
 
     it('should cache Google Account when logging in with user code', async () => {
@@ -472,7 +573,10 @@ describe('oauth2', () => {
         generateCodeVerifierAsync: mockGenerateCodeVerifierAsync,
         getAccessToken: mockGetAccessToken,
         on: vi.fn(),
+        off: vi.fn(),
         credentials: {},
+        listeners: vi.fn().mockReturnValue([]),
+        removeAllListeners: vi.fn(),
       } as unknown as OAuth2Client;
       mockOAuth2Client.setCredentials = vi.fn().mockImplementation((creds) => {
         mockOAuth2Client.credentials = creds;
@@ -491,6 +595,11 @@ describe('oauth2', () => {
       // Mock process.stdin methods for the "Press any key" pause
       const stdin = process.stdin as unknown as NodeJS.ReadStream;
       const originalSetRawMode = stdin.setRawMode;
+      const originalIsTTY = stdin.isTTY;
+      Object.defineProperty(stdin, 'isTTY', {
+        value: true,
+        configurable: true,
+      });
       stdin.setRawMode = vi.fn().mockReturnValue(stdin);
 
       const resumeSpy = vi.spyOn(stdin, 'resume').mockReturnValue(stdin);
@@ -533,6 +642,10 @@ describe('oauth2', () => {
       }
 
       stdin.setRawMode = originalSetRawMode;
+      Object.defineProperty(stdin, 'isTTY', {
+        value: originalIsTTY,
+        configurable: true,
+      });
       resumeSpy.mockRestore();
       onceSpy.mockRestore();
     });
@@ -712,7 +825,9 @@ describe('oauth2', () => {
 
         const mockOAuth2Client = {
           on: vi.fn(),
-        };
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
+        } as unknown as OAuth2Client;
         (OAuth2Client as unknown as Mock).mockImplementation(
           () => mockOAuth2Client,
         );
@@ -744,6 +859,9 @@ describe('oauth2', () => {
           setCredentials: mockSetCredentials,
           getAccessToken: mockGetAccessToken,
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -802,6 +920,9 @@ describe('oauth2', () => {
           getAccessToken: mockGetAccessToken,
           getTokenInfo: mockGetTokenInfo,
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -835,6 +956,9 @@ describe('oauth2', () => {
           getAccessToken: mockGetAccessToken,
           getTokenInfo: mockGetTokenInfo,
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -864,6 +988,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -877,6 +1004,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -993,6 +1123,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1050,6 +1183,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1107,6 +1243,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1177,6 +1316,9 @@ describe('oauth2', () => {
             .fn()
             .mockRejectedValue(new Error('Token exchange failed')),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1338,6 +1480,9 @@ describe('oauth2', () => {
             .fn()
             .mockRejectedValue(new Error('Invalid authorization code')),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1376,6 +1521,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1441,6 +1589,9 @@ describe('oauth2', () => {
         const mockOAuth2Client = {
           generateAuthUrl: vi.fn().mockReturnValue(mockAuthUrl),
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1625,6 +1776,9 @@ describe('oauth2', () => {
           getAccessToken: mockGetAccessToken,
           getTokenInfo: mockGetTokenInfo,
           on: vi.fn(),
+          off: vi.fn(),
+          listeners: vi.fn().mockReturnValue([]),
+          removeAllListeners: vi.fn(),
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
@@ -1658,21 +1812,8 @@ describe('oauth2', () => {
   });
 
   describe('with encrypted flag true', () => {
-    let tempHomeDir: string;
     beforeEach(() => {
       process.env[FORCE_ENCRYPTED_FILE_ENV_VAR] = 'true';
-      tempHomeDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'gemini-cli-test-home-'),
-      );
-      vi.mocked(os.homedir).mockReturnValue(tempHomeDir);
-      vi.mocked(pathsHomedir).mockReturnValue(tempHomeDir);
-    });
-
-    afterEach(() => {
-      fs.rmSync(tempHomeDir, { recursive: true, force: true });
-      vi.clearAllMocks();
-      resetOauthClientForTesting();
-      vi.unstubAllEnvs();
     });
 
     it('should save credentials using OAuthCredentialStorage during web login', async () => {
@@ -1707,7 +1848,10 @@ describe('oauth2', () => {
           .fn()
           .mockResolvedValue({ token: 'mock-access-token' }),
         on: mockOn,
+        off: vi.fn(),
         credentials: mockTokens,
+        listeners: vi.fn().mockReturnValue([]),
+        removeAllListeners: vi.fn(),
       } as unknown as OAuth2Client;
       vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
