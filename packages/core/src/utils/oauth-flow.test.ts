@@ -327,6 +327,28 @@ describe('oauth-flow', () => {
         vi.useRealTimers();
       }
     });
+
+    it('should handle multiple closure attempts gracefully (e.g., abort after success)', async () => {
+      vi.useFakeTimers();
+      try {
+        const server = startCallbackServer('test-state');
+        const port = await server.port;
+
+        // 1. Trigger successful callback
+        await realFetch(
+          `http://localhost:${port}${REDIRECT_PATH}?code=abc&state=test-state`,
+        );
+        const response = await server.response;
+        expect(response.code).toBe('abc');
+
+        // 2. Trigger timeout/abort (should be ignored by closeServer)
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+
+        // If we reach here without ERR_SERVER_NOT_RUNNING or multiple rejections, it's successful
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('exchangeCodeForToken', () => {
