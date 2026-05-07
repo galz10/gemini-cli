@@ -47,6 +47,9 @@ const ENOSPC_WARNING_MESSAGE =
   'The conversation will continue but will not be saved to disk. ' +
   'Free up disk space and restart to enable recording.';
 
+const DIR_MODE = 0o700;
+const FILE_MODE = 0o600;
+
 function hasProperty<T extends string>(
   obj: unknown,
   prop: T,
@@ -334,6 +337,11 @@ export class ChatRecordingService {
           this.cachedConversation = loadedRecord;
           this.projectHash = this.cachedConversation.projectHash;
 
+          // Ensure permissions are correct on the resumed file/dir asynchronously
+          this.fixPermissionsAsync(this.conversationFile).catch(() => {});
+          const dir = path.dirname(this.conversationFile);
+          this.fixPermissionsAsync(dir, false).catch(() => {});
+
           if (this.conversationFile.endsWith('.json')) {
             this.conversationFile = this.conversationFile + 'l'; // e.g. session-foo.jsonl
 
@@ -387,9 +395,8 @@ export class ChatRecordingService {
         }
 
         // Ensure the directory exists with strict permissions
-        fs.mkdirSync(chatsDir, { recursive: true, mode: 0o700 });
-        // Also ensure any parent directories we just created have correct permissions
-        this.fixPermissions(chatsDir);
+        this.secureMkdirRecursive(chatsDir);
+        this.fixPermissionsAsync(chatsDir).catch(() => {});
 
         const timestamp = new Date()
           .toISOString()
@@ -455,23 +462,13 @@ export class ChatRecordingService {
     if (!this.conversationFile) return;
     try {
       const line = JSON.stringify(record) + '\n';
-      const dir = path.dirname(this.conversationFile);
-
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-        this.fixPermissions(dir);
-      }
 
       if (!fs.existsSync(this.conversationFile)) {
-        fs.writeFileSync(this.conversationFile, line, { mode: 0o600 });
+        const dir = path.dirname(this.conversationFile);
+        this.secureMkdirRecursive(dir);
+        fs.writeFileSync(this.conversationFile, line, { mode: FILE_MODE });
       } else {
         fs.appendFileSync(this.conversationFile, line);
-        // Ensure permissions are strict even if file already existed with different umask
-        try {
-          fs.chmodSync(this.conversationFile, 0o600);
-        } catch {
-          // Ignore chmod errors on systems that don't support it
-        }
       }
     } catch (error) {
       if (isNodeError(error) && error.code === 'ENOSPC') {
@@ -485,21 +482,56 @@ export class ChatRecordingService {
 
   /**
    * Recursively ensures strict permissions on a directory and its contents.
+   * This is done asynchronously to avoid blocking the main thread.
    */
-  private fixPermissions(targetPath: string): void {
+  private async fixPermissionsAsync(
+    targetPath: string,
+    recursive = true,
+  ): Promise<void> {
     try {
-      const stats = fs.statSync(targetPath);
+      const stats = await fs.promises.stat(targetPath);
       if (stats.isDirectory()) {
-        fs.chmodSync(targetPath, 0o700);
-        const files = fs.readdirSync(targetPath);
-        for (const file of files) {
-          this.fixPermissions(path.join(targetPath, file));
+        await fs.promises.chmod(targetPath, DIR_MODE);
+        if (recursive) {
+          const files = await fs.promises.readdir(targetPath);
+          await Promise.all(
+            files.map((file) =>
+              this.fixPermissionsAsync(path.join(targetPath, file), true),
+            ),
+          );
         }
       } else if (stats.isFile()) {
-        fs.chmodSync(targetPath, 0o600);
+        await fs.promises.chmod(targetPath, FILE_MODE);
       }
     } catch (error) {
-      debugLogger.debug(`Failed to fix permissions for ${targetPath}:`, error);
+      debugLogger.warn(`Failed to fix permissions for ${targetPath}:`, error);
+    }
+  }
+
+  /**
+   * Ensures the directory exists with strict permissions, including intermediate directories
+   * within the project temp directory.
+   */
+  private secureMkdirRecursive(targetDir: string): void {
+    fs.mkdirSync(targetDir, { recursive: true, mode: DIR_MODE });
+
+    // Manually ensure all directories in the path have correct permissions,
+    // starting from the leaf up to the project temp directory.
+    let current = targetDir;
+    const projectTempDir = this.context.config.storage.getProjectTempDir();
+    while (
+      current !== path.dirname(current) &&
+      current.startsWith(projectTempDir)
+    ) {
+      try {
+        fs.chmodSync(current, DIR_MODE);
+      } catch (error) {
+        debugLogger.warn(
+          `Failed to set permissions for directory ${current}:`,
+          error,
+        );
+      }
+      current = path.dirname(current);
     }
   }
 

@@ -20,6 +20,7 @@ vi.mock('node:fs', async (importOriginal) => {
     unlinkSync: vi.fn(actual.unlinkSync),
     existsSync: vi.fn(actual.existsSync),
     readdirSync: vi.fn(actual.readdirSync),
+    chmodSync: vi.fn(actual.chmodSync),
     promises: {
       ...actual.promises,
       stat: vi.fn(actual.promises.stat),
@@ -30,6 +31,7 @@ vi.mock('node:fs', async (importOriginal) => {
       rm: vi.fn(actual.promises.rm),
       mkdir: vi.fn(actual.promises.mkdir),
       writeFile: vi.fn(actual.promises.writeFile),
+      chmod: vi.fn(actual.promises.chmod),
     },
   };
   return {
@@ -1304,15 +1306,44 @@ describe('ChatRecordingService', () => {
 
     it('should fix permissions of existing files and directories during initialization', async () => {
       const chatsDir = path.join(testTempDir, 'chats');
+      // Create with loose permissions
       fs.mkdirSync(chatsDir, { recursive: true, mode: 0o755 });
+      fs.chmodSync(chatsDir, 0o755);
       const testFile = path.join(chatsDir, 'legacy.jsonl');
       fs.writeFileSync(testFile, '{}', { mode: 0o644 });
+      fs.chmodSync(testFile, 0o644);
+
+      expect(fs.statSync(chatsDir).mode & 0o777).toBe(0o755);
+      expect(fs.statSync(testFile).mode & 0o777).toBe(0o644);
 
       // Initialize should trigger fixPermissions
       await chatRecordingService.initialize();
 
+      // chatsDir should be fixed synchronously by secureMkdirRecursive
       expect(fs.statSync(chatsDir).mode & 0o777).toBe(0o700);
-      expect(fs.statSync(testFile).mode & 0o777).toBe(0o600);
+
+      // Other files might be fixed asynchronously
+      await vi.waitFor(() => {
+        expect(fs.statSync(testFile).mode & 0o777).toBe(0o600);
+      });
+    });
+
+    it('should ensure all intermediate directories have strict permissions', async () => {
+      const parentSessionId = 'test-parent-uuid';
+      Object.defineProperty(mockConfig, 'parentSessionId', {
+        value: parentSessionId,
+        writable: true,
+        configurable: true,
+      });
+
+      const chatsDir = path.join(testTempDir, 'chats');
+      const subagentDir = path.join(chatsDir, parentSessionId);
+
+      // Initialize as a subagent
+      await chatRecordingService.initialize(undefined, 'subagent');
+
+      expect(fs.statSync(chatsDir).mode & 0o777).toBe(0o700);
+      expect(fs.statSync(subagentDir).mode & 0o777).toBe(0o700);
     });
   });
 
