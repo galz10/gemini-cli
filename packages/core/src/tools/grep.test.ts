@@ -44,9 +44,14 @@ describe('GrepTool', () => {
   let grepTool: GrepTool;
   const abortSignal = new AbortController().signal;
   let mockConfig: Config;
+  let mockFileService: FileDiscoveryService;
 
   beforeEach(async () => {
     tempRootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'grep-tool-root-'));
+    mockFileService = new FileDiscoveryService(tempRootDir, {
+      respectGitIgnore: true,
+      respectGeminiIgnore: true,
+    });
 
     mockConfig = {
       getTargetDir: () => tempRootDir,
@@ -61,11 +66,7 @@ describe('GrepTool', () => {
         searchTimeout: 30000,
         customIgnoreFilePaths: [],
       }),
-      getFileService: () =>
-        new FileDiscoveryService(tempRootDir, {
-          respectGitIgnore: true,
-          respectGeminiIgnore: true,
-        }),
+      getFileService: () => mockFileService,
       storage: {
         getProjectTempDir: vi.fn().mockReturnValue('/tmp/project'),
       },
@@ -656,6 +657,32 @@ describe('GrepTool', () => {
       // MAX_LINE_LENGTH_TEXT_FILE is 2000. It should be truncated.
       expect(result.llmContent).toContain('... [truncated]');
       expect(result.llmContent).not.toContain(longString);
+    });
+
+    it('should cache ignore checks and call shouldIgnoreFile only once per file', async () => {
+      // Create a file with multiple matches
+      await fs.writeFile(
+        path.join(tempRootDir, 'multi-match.txt'),
+        'match 1\nmatch 2\nmatch 3',
+      );
+
+      const fileService = mockConfig.getFileService();
+      const shouldIgnoreSpy = vi.spyOn(fileService, 'shouldIgnoreFile');
+
+      const params: GrepToolParams = { pattern: 'match' };
+      const invocation = grepTool.build(params);
+      await invocation.execute({ abortSignal });
+
+      // Should find 3 matches in multi-match.txt
+      // If cached, shouldIgnoreFile should only be called once for this file.
+      // (Wait, there might be other files in the directory from beforeEach)
+      const multiMatchAbsPath = path.join(tempRootDir, 'multi-match.txt');
+      const callsForFile = shouldIgnoreSpy.mock.calls.filter(
+        (call) => call[0] === multiMatchAbsPath,
+      );
+      expect(callsForFile.length).toBe(1);
+
+      shouldIgnoreSpy.mockRestore();
     });
   });
 

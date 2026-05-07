@@ -1942,6 +1942,50 @@ describe('RipGrepTool', () => {
       expect(result.llmContent).toContain('... [truncated]');
       expect(result.llmContent).not.toContain(longString);
     });
+
+    it('should cache ignore checks and call shouldIgnoreFile only once per file', async () => {
+      // Mock ripgrep to return 3 matches in the same file
+      const matches =
+        [1, 2, 3]
+          .map((ln) =>
+            JSON.stringify({
+              type: 'match',
+              data: {
+                path: { text: 'multi-match.txt' },
+                line_number: ln,
+                lines: { text: `match ${ln}\n` },
+              },
+            }),
+          )
+          .join('\n') + '\n';
+
+      mockSpawn.mockImplementation(createMockSpawn({ outputData: matches }));
+
+      // We need to spy on the fileDiscoveryService instance used by RipGrepTool
+      // Since it's created in the constructor, we can access it via invocation
+      const params: RipGrepToolParams = { pattern: 'match' };
+      const invocation = grepTool.build(params);
+
+      // Access private fileDiscoveryService via any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fileDiscoveryService = (invocation as any).fileDiscoveryService;
+      const shouldIgnoreSpy = vi.spyOn(
+        fileDiscoveryService,
+        'shouldIgnoreFile',
+      );
+
+      await invocation.execute({ abortSignal });
+
+      // Should find 3 matches in multi-match.txt
+      // If cached, shouldIgnoreFile should only be called once for this file.
+      const multiMatchAbsPath = path.resolve(tempRootDir, 'multi-match.txt');
+      const callsForFile = shouldIgnoreSpy.mock.calls.filter(
+        (call) => call[0] === multiMatchAbsPath,
+      );
+      expect(callsForFile.length).toBe(1);
+
+      shouldIgnoreSpy.mockRestore();
+    });
   });
 });
 

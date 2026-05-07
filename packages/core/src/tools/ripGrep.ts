@@ -224,6 +224,8 @@ class GrepToolInvocation extends BaseToolInvocation<
         debugLogger.log(`[GrepTool] Total result limit: ${totalMaxMatches}`);
       }
 
+      const ignoreCache = new Map<string, boolean>();
+
       // Create a timeout controller to prevent indefinitely hanging searches
       const timeoutController = new AbortController();
       const configTimeout = this.config.getFileFilteringOptions().searchTimeout;
@@ -262,6 +264,7 @@ class GrepToolInvocation extends BaseToolInvocation<
           maxMatches: totalMaxMatches,
           max_matches_per_file: this.params.max_matches_per_file,
           signal: timeoutController.signal,
+          ignoreCache,
         });
       } catch (error) {
         if (timeoutController.signal.aborted) {
@@ -275,21 +278,6 @@ class GrepToolInvocation extends BaseToolInvocation<
         signal.removeEventListener('abort', onAbort);
       }
 
-      if (!this.params.no_ignore) {
-        const uniqueFiles = Array.from(
-          new Set(allMatches.map((m) => m.filePath)),
-        );
-        const absoluteFilePaths = uniqueFiles.map((f) =>
-          path.resolve(searchDirAbs, f),
-        );
-        const allowedFiles =
-          this.fileDiscoveryService.filterFiles(absoluteFilePaths);
-        const allowedSet = new Set(allowedFiles);
-        allMatches = allMatches.filter((m) =>
-          allowedSet.has(path.resolve(searchDirAbs, m.filePath)),
-        );
-      }
-
       const matchCount = allMatches.filter((m) => !m.isContext).length;
       allMatches = await this.enrichWithRipgrepAutoContext(
         allMatches,
@@ -297,6 +285,7 @@ class GrepToolInvocation extends BaseToolInvocation<
         totalMaxMatches,
         searchDirAbs,
         timeoutController.signal,
+        ignoreCache,
       );
 
       const searchLocationDescription = `in path "${searchDirDisplay}"`;
@@ -323,6 +312,7 @@ class GrepToolInvocation extends BaseToolInvocation<
     totalMaxMatches: number,
     searchDirAbs: string,
     signal: AbortSignal,
+    ignoreCache: Map<string, boolean>,
   ): Promise<GrepMatch[]> {
     if (
       matchCount >= 1 &&
@@ -337,7 +327,7 @@ class GrepToolInvocation extends BaseToolInvocation<
         new Set(allMatches.map((m) => m.absolutePath)),
       );
 
-      let enrichedMatches = await this.performRipgrepSearch({
+      const enrichedMatches = await this.performRipgrepSearch({
         pattern: this.params.pattern,
         path: uniqueFiles,
         basePath: searchDirAbs,
@@ -350,15 +340,8 @@ class GrepToolInvocation extends BaseToolInvocation<
         maxMatches: totalMaxMatches,
         max_matches_per_file: this.params.max_matches_per_file,
         signal,
+        ignoreCache,
       });
-
-      if (!this.params.no_ignore) {
-        const allowedFiles = this.fileDiscoveryService.filterFiles(uniqueFiles);
-        const allowedSet = new Set(allowedFiles);
-        enrichedMatches = enrichedMatches.filter((m) =>
-          allowedSet.has(m.absolutePath),
-        );
-      }
 
       // Set context to prevent grep-utils from doing the JS fallback auto-context
       this.params.context = contextLines;
@@ -383,6 +366,7 @@ class GrepToolInvocation extends BaseToolInvocation<
     maxMatches: number;
     max_matches_per_file?: number;
     signal: AbortSignal;
+    ignoreCache: Map<string, boolean>;
   }): Promise<GrepMatch[]> {
     const {
       pattern,
@@ -398,6 +382,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       no_ignore,
       maxMatches,
       max_matches_per_file,
+      ignoreCache,
     } = options;
 
     const searchPaths = Array.isArray(path) ? path : [path];
@@ -475,9 +460,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       if (exclude_pattern) {
         excludeRegex = new RegExp(exclude_pattern, case_sensitive ? '' : 'i');
       }
-
       const parseBasePath = basePath || searchPaths[0];
-      const ignoreCache = new Map<string, boolean>();
 
       for await (const line of generator) {
         const match = this.parseRipgrepJsonLine(line, parseBasePath);

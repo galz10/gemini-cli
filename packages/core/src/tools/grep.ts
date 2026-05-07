@@ -214,6 +214,8 @@ class GrepToolInvocation extends BaseToolInvocation<
       const totalMaxMatches =
         this.params.total_max_matches ?? DEFAULT_TOTAL_MAX_MATCHES;
 
+      const ignoreCache = new Map<string, boolean>();
+
       // Create a timeout controller to prevent indefinitely hanging searches
       const timeoutController = new AbortController();
       const configTimeout = this.config.getFileFilteringOptions().searchTimeout;
@@ -249,6 +251,7 @@ class GrepToolInvocation extends BaseToolInvocation<
             maxMatches: remainingLimit,
             max_matches_per_file: this.params.max_matches_per_file,
             signal: timeoutController.signal,
+            ignoreCache,
           });
 
           // Add directory prefix if searching multiple directories
@@ -388,6 +391,7 @@ class GrepToolInvocation extends BaseToolInvocation<
     maxMatches: number;
     max_matches_per_file?: number;
     signal: AbortSignal;
+    ignoreCache: Map<string, boolean>;
   }): Promise<GrepMatch[]> {
     const {
       pattern,
@@ -396,6 +400,7 @@ class GrepToolInvocation extends BaseToolInvocation<
       exclude_pattern,
       maxMatches,
       max_matches_per_file,
+      ignoreCache,
     } = options;
     let strategyUsed = 'none';
 
@@ -406,7 +411,6 @@ class GrepToolInvocation extends BaseToolInvocation<
       }
 
       const fileService = this.config.getFileService();
-      const ignoreCache = new Map<string, boolean>();
 
       const shouldIgnore = (absPath: string): boolean => {
         let cached = ignoreCache.get(absPath);
