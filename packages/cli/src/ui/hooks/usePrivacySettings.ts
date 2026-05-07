@@ -75,10 +75,11 @@ export const usePrivacySettings = (config: Config) => {
           dataCollectionOptIn: updatedOptIn,
         });
       } catch (e) {
-        setPrivacyState({
+        setPrivacyState((prev) => ({
+          ...prev,
           isLoading: false,
           error: e instanceof Error ? e.message : String(e),
-        });
+        }));
       }
     },
     [config],

@@ -129,6 +129,10 @@ describe('usePrivacySettings', () => {
       expect(result.current.privacyState.isLoading).toBe(false);
     });
 
+    expect(
+      mockCodeAssistServer.getCodeAssistGlobalUserSetting,
+    ).toHaveBeenCalledWith('test-project-id');
+
     // Update the setting
     await act(async () => {
       await result.current.updateDataCollectionOptIn(false);

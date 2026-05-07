@@ -72,6 +72,7 @@ export interface HttpOptions {
 
 export const CODE_ASSIST_ENDPOINT = 'https://cloudcode-pa.googleapis.com';
 export const CODE_ASSIST_API_VERSION = 'v1internal';
+export const CLOUD_AI_COMPANION_PROJECT_QUERY_PARAM = 'cloudaicompanionProject';
 const GENERATE_CONTENT_RETRY_DELAY_IN_MILLISECONDS = 1000;
 
 export class CodeAssistServer implements ContentGenerator {
@@ -322,7 +323,7 @@ export class CodeAssistServer implements ContentGenerator {
   ): Promise<CodeAssistGlobalUserSettingResponse> {
     const params: Record<string, string> = {};
     if (projectId) {
-      params['cloudaicompanionProject'] = projectId;
+      params[CLOUD_AI_COMPANION_PROJECT_QUERY_PARAM] = projectId;
     }
     return this.requestGet<CodeAssistGlobalUserSettingResponse>(
       'getCodeAssistGlobalUserSetting',
@@ -473,8 +474,12 @@ export class CodeAssistServer implements ContentGenerator {
     return this.makeGetRequest<T>(this.getMethodUrl(method), signal, params);
   }
 
-  async requestGetOperation<T>(name: string, signal?: AbortSignal): Promise<T> {
-    return this.makeGetRequest<T>(this.getOperationUrl(name), signal);
+  async requestGetOperation<T>(
+    name: string,
+    signal?: AbortSignal,
+    params?: Record<string, string>,
+  ): Promise<T> {
+    return this.makeGetRequest<T>(this.getOperationUrl(name), signal, params);
   }
 
   async requestStreamingPost<T>(

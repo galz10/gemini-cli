@@ -726,19 +726,24 @@ describe('CodeAssistServer', () => {
     expect(response).toEqual(mockResponse);
   });
 
-  it('should call getCodeAssistGlobalUserSetting endpoint', async () => {
-    const { server } = createTestServer();
+  it('should call getCodeAssistGlobalUserSetting endpoint with projectId', async () => {
+    const { server, mockRequest } = createTestServer();
     const mockResponse: CodeAssistGlobalUserSettingResponse = {
       freeTierDataCollectionOptin: true,
     };
-    const requestGetSpy = vi
-      .spyOn(server, 'requestGet')
-      .mockResolvedValue(mockResponse);
+    mockRequest.mockResolvedValue({ data: mockResponse });
 
-    const response = await server.getCodeAssistGlobalUserSetting();
+    const response =
+      await server.getCodeAssistGlobalUserSetting('test-project');
 
-    expect(requestGetSpy).toHaveBeenCalledWith(
-      'getCodeAssistGlobalUserSetting',
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: expect.stringContaining('getCodeAssistGlobalUserSetting'),
+        method: 'GET',
+        params: {
+          cloudaicompanionProject: 'test-project',
+        },
+      }),
     );
     expect(response).toEqual(mockResponse);
   });
