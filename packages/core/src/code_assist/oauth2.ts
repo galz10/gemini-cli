@@ -48,6 +48,17 @@ import {
 } from '../utils/terminal.js';
 import { coreEvents, CoreEvent } from '../utils/events.js';
 import { getConsentForOauth } from '../utils/authConsent.js';
+import { z } from 'zod';
+
+const CredentialsSchema = z
+  .object({
+    access_token: z.string().optional(),
+    refresh_token: z.string().optional(),
+    expiry_date: z.number().optional(),
+    token_type: z.string().optional(),
+    scope: z.string().optional(),
+  })
+  .passthrough();
 
 export const authEvents = new EventEmitter();
 
@@ -675,8 +686,7 @@ async function fetchCachedCredentials(): Promise<
   for (const keyFile of pathsToTry) {
     try {
       const keyFileString = await fs.readFile(keyFile, 'utf-8');
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return JSON.parse(keyFileString);
+      return CredentialsSchema.parse(JSON.parse(keyFileString)) as Credentials;
     } catch (error) {
       // Log specific error for debugging, but continue trying other paths
       debugLogger.debug(
@@ -755,8 +765,9 @@ async function cacheCredentials(credentials: Credentials) {
   let existingCredentials: Credentials = {};
   try {
     const existingContent = await fs.readFile(filePath, 'utf-8');
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    existingCredentials = JSON.parse(existingContent);
+    existingCredentials = CredentialsSchema.parse(
+      JSON.parse(existingContent),
+    ) as Credentials;
   } catch {
     // Ignore read/parse errors, start with empty
   }
@@ -770,7 +781,16 @@ async function cacheCredentials(credentials: Credentials) {
   };
 
   const credString = JSON.stringify(mergedCredentials, null, 2);
-  await fs.writeFile(filePath, credString, { mode: 0o600 });
+  const tempFilePath = `${filePath}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+
+  try {
+    await fs.writeFile(tempFilePath, credString, { mode: 0o600 });
+    await fs.rename(tempFilePath, filePath);
+  } catch (error) {
+    await fs.rm(tempFilePath, { force: true }).catch(() => {});
+    throw error;
+  }
+
   try {
     await fs.chmod(filePath, 0o600);
   } catch {

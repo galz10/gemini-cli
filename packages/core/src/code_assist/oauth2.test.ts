@@ -293,6 +293,56 @@ describe('oauth2', () => {
       expect(fs.existsSync(credsPath)).toBe(false);
     });
 
+    it('should merge new credentials with existing ones to preserve refresh_token', async () => {
+      const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
+      await fs.promises.mkdir(path.dirname(credsPath), { recursive: true });
+
+      const existingCreds = {
+        access_token: 'old-access-token',
+        refresh_token: 'preserved-refresh-token',
+        token_type: 'Bearer',
+      };
+      await fs.promises.writeFile(credsPath, JSON.stringify(existingCreds));
+
+      const mockTokens = {
+        access_token: 'new-access-token',
+        // refresh_token is missing
+      };
+
+      const mockOAuth2Client = {
+        on: vi
+          .fn()
+          .mockImplementation(
+            (event: string, listener: (tokens: Credentials) => void) => {
+              if (event === 'tokens') {
+                tokensListener = listener as (
+                  tokens: Credentials,
+                ) => Promise<void>;
+              }
+              return mockOAuth2Client;
+            },
+          ),
+        setCredentials: vi.fn(),
+        generateAuthUrl: vi.fn().mockReturnValue('https://example.com/auth'),
+        getAccessToken: vi.fn().mockResolvedValue({ token: 'test-token' }),
+        getTokenInfo: vi.fn().mockResolvedValue({}),
+      } as unknown as OAuth2Client;
+      vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
+
+      await getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfig);
+
+      expect(tokensListener).toBeDefined();
+      if (tokensListener) {
+        await tokensListener(mockTokens);
+      }
+
+      // Verify the merged credentials in the file
+      const storedCreds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
+      expect(storedCreds.access_token).toBe('new-access-token');
+      expect(storedCreds.refresh_token).toBe('preserved-refresh-token');
+      expect(storedCreds.token_type).toBe('Bearer');
+    });
+
     it('should emit post_auth event when loading cached credentials', async () => {
       const cachedCreds = { refresh_token: 'cached-token' };
       const credsPath = path.join(tempHomeDir, GEMINI_DIR, 'oauth_creds.json');
