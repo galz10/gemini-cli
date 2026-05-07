@@ -122,6 +122,7 @@ describe('useAuth', () => {
     const mockConfig = {
       refreshAuth: vi.fn(),
       hasApiKeyInEnv: vi.fn().mockReturnValue(false),
+      getApiKeyFromEnv: vi.fn().mockReturnValue(undefined),
     } as unknown as Config;
 
     const createSettings = (selectedType?: AuthType) =>
@@ -236,6 +237,7 @@ describe('useAuth', () => {
 
     it('should authenticate if USE_GEMINI and env key is found', async () => {
       process.env['GEMINI_API_KEY'] = 'env-key';
+      vi.mocked(mockConfig.getApiKeyFromEnv).mockReturnValue('env-key');
 
       const { result } = await renderHook(() =>
         useAuthCommand(createSettings(AuthType.USE_GEMINI), mockConfig),
@@ -252,6 +254,7 @@ describe('useAuth', () => {
 
     it('should prioritize env key over stored key when both are present', async () => {
       process.env['GEMINI_API_KEY'] = 'env-key';
+      vi.mocked(mockConfig.getApiKeyFromEnv).mockReturnValue('env-key');
 
       const { result } = await renderHook(() =>
         useAuthCommand(createSettings(AuthType.USE_GEMINI), mockConfig),

@@ -1412,6 +1412,10 @@ export class Config implements McpContext, AgentLoopContext {
     return !!process.env['GEMINI_API_KEY'];
   }
 
+  getApiKeyFromEnv(): string | undefined {
+    return process.env['GEMINI_API_KEY'];
+  }
+
   get config(): Config {
     return this;
   }

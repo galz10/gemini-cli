@@ -86,6 +86,7 @@ describe('AuthDialog', () => {
       config: {
         isBrowserLaunchSuppressed: vi.fn().mockReturnValue(false),
         hasApiKeyInEnv: vi.fn().mockReturnValue(false),
+        getApiKeyFromEnv: vi.fn().mockReturnValue(undefined),
       } as unknown as Config,
       settings: {
         merged: {
@@ -220,6 +221,7 @@ describe('AuthDialog', () => {
       {
         setup: () => {
           vi.stubEnv('GEMINI_API_KEY', 'test-key');
+          vi.mocked(props.config.hasApiKeyInEnv).mockReturnValue(true);
         },
         expected: AuthType.USE_GEMINI,
         desc: 'from GEMINI_API_KEY env var',

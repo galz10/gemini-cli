@@ -103,7 +103,7 @@ export function AuthDialog({
       return item.value === defaultAuthType;
     }
 
-    if (process.env['GEMINI_API_KEY']) {
+    if (config.hasApiKeyInEnv()) {
       return item.value === AuthType.USE_GEMINI;
     }
 

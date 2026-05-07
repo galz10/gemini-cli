@@ -66,7 +66,7 @@ export const useAuthCommand = (
   );
 
   const reloadApiKey = useCallback(async () => {
-    const envKey = process.env['GEMINI_API_KEY'];
+    const envKey = config.getApiKeyFromEnv();
     if (envKey !== undefined) {
       setApiKeyDefaultValue(envKey);
       return envKey;
@@ -75,7 +75,7 @@ export const useAuthCommand = (
     const storedKey = (await loadApiKey()) ?? '';
     setApiKeyDefaultValue(storedKey);
     return storedKey;
-  }, []);
+  }, [config]);
 
   useEffect(() => {
     if (authState === AuthState.AwaitingApiKeyInput) {
