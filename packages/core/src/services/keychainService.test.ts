@@ -154,8 +154,7 @@ describe('KeychainService', () => {
       // Because it falls back to FileKeychain, it is always available.
       expect(available).toBe(true);
       expect(debugLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('encountered an error'),
-        'locked',
+        expect.stringContaining('encountered a native error (redacted)'),
       );
       expect(coreEvents.emitTelemetryKeychainAvailability).toHaveBeenCalledWith(
         expect.objectContaining({ available: false }),
@@ -364,7 +363,7 @@ describe('KeychainService', () => {
       );
     });
 
-    it('should log original error to debugLogger only', async () => {
+    it('should log generic message to debugLogger only to avoid PII leakage', async () => {
       const originalError = new Error('Very sensitive system details');
       mockKeytar.findCredentials?.mockRejectedValue(originalError);
 
@@ -373,8 +372,24 @@ describe('KeychainService', () => {
       );
 
       expect(debugLogger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Native keychain error during findCredentials'),
-        originalError.message,
+        'Native keychain error during findCredentials: System failure',
+      );
+    });
+
+    it('should handle non-Error strings correctly during sanitization', async () => {
+      mockKeytar.getPassword?.mockRejectedValue('not found');
+      await expect(service.getPassword('acc')).rejects.toThrow(
+        'Credential not found in system keychain',
+      );
+    });
+
+    it('should handle non-Error objects correctly during sanitization', async () => {
+      mockKeytar.getPassword?.mockRejectedValue({
+        code: 'ENOENT',
+        path: '/foo/bar',
+      });
+      await expect(service.getPassword('acc')).rejects.toThrow(
+        'System keychain operation failed (getPassword)',
       );
     });
   });

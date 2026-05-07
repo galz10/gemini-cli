@@ -54,7 +54,7 @@ export class KeychainService {
     try {
       return await keychain.getPassword(this.serviceName, account);
     } catch (error) {
-      throw this.sanitizeError(error, 'getPassword');
+      throw KeychainService.sanitizeError(error, 'getPassword');
     }
   }
 
@@ -67,7 +67,7 @@ export class KeychainService {
     try {
       await keychain.setPassword(this.serviceName, account, value);
     } catch (error) {
-      throw this.sanitizeError(error, 'setPassword');
+      throw KeychainService.sanitizeError(error, 'setPassword');
     }
   }
 
@@ -81,7 +81,7 @@ export class KeychainService {
     try {
       return await keychain.deletePassword(this.serviceName, account);
     } catch (error) {
-      throw this.sanitizeError(error, 'deletePassword');
+      throw KeychainService.sanitizeError(error, 'deletePassword');
     }
   }
 
@@ -96,25 +96,29 @@ export class KeychainService {
     try {
       return await keychain.findCredentials(this.serviceName);
     } catch (error) {
-      throw this.sanitizeError(error, 'findCredentials');
+      throw KeychainService.sanitizeError(error, 'findCredentials');
     }
   }
 
-  private sanitizeError(error: unknown, operation: string): Error {
+  /**
+   * Sanitizes errors from the native keychain to prevent PII leakage.
+   * Only generic error messages are returned to the caller, and sensitive
+   * details are redacted from debug logs.
+   */
+  private static sanitizeError(error: unknown, operation: string): Error {
     const originalMessage =
       error instanceof Error ? error.message : String(error);
-    debugLogger.debug(
-      `Native keychain error during ${operation}:`,
-      originalMessage,
-    );
+    const lowerMessage = originalMessage.toLowerCase();
 
     // Generic error messages that don't leak PII or system details
-    const lowerMessage = originalMessage.toLowerCase();
     if (
       lowerMessage.includes('access denied') ||
       lowerMessage.includes('user interaction is not allowed') ||
       lowerMessage.includes('permission')
     ) {
+      debugLogger.debug(
+        `Native keychain error during ${operation}: Access denied`,
+      );
       return new Error('Access denied to system keychain');
     }
 
@@ -122,9 +126,15 @@ export class KeychainService {
       lowerMessage.includes('not found') ||
       lowerMessage.includes('could not be found')
     ) {
+      debugLogger.debug(`Native keychain error during ${operation}: Not found`);
       return new Error('Credential not found in system keychain');
     }
 
+    // For unknown errors, we log the operation but avoid logging the full originalMessage
+    // to prevent potential leakage of PII like account names or keychain paths.
+    debugLogger.debug(
+      `Native keychain error during ${operation}: System failure`,
+    );
     return new Error(`System keychain operation failed (${operation})`);
   }
 
@@ -186,12 +196,10 @@ export class KeychainService {
 
       debugLogger.debug('Keychain functional verification failed');
       return null;
-    } catch (error) {
+    } catch {
       // Avoid logging full error objects to prevent PII exposure.
-      const message = error instanceof Error ? error.message : String(error);
       debugLogger.debug(
-        'Keychain initialization encountered an error:',
-        message,
+        'Keychain initialization encountered a native error (redacted)',
       );
       return null;
     }
