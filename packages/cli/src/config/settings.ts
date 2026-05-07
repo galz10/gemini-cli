@@ -100,7 +100,10 @@ export const RESTRICTED_WORKSPACE_ENV_VARS = new Set([
   'VISUAL',
   'SHELL',
   'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
   'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'PATH',
 ]);
 
 const AUTH_ENV_VAR_WHITELIST = [
@@ -649,7 +652,15 @@ export function loadEnvironment(
 
       const excludedVars =
         settings?.advanced?.excludedEnvVars || DEFAULT_EXCLUDED_ENV_VARS;
-      const isProjectEnvFile = !envFilePath.includes(GEMINI_DIR);
+
+      // Robust check for project vs global environment files.
+      // Global files (in the user's home directory) are exempt from the blocklist.
+      const globalGeminiEnv = path.join(homedir(), GEMINI_DIR, '.env');
+      const globalHomeEnv = path.join(homedir(), '.env');
+      const isGlobalEnvFile =
+        path.resolve(envFilePath) === path.resolve(globalGeminiEnv) ||
+        path.resolve(envFilePath) === path.resolve(globalHomeEnv);
+      const isProjectEnvFile = !isGlobalEnvFile;
 
       for (const key in parsedEnv) {
         if (Object.hasOwn(parsedEnv, key)) {
@@ -663,9 +674,10 @@ export function loadEnvironment(
             value = sanitizeEnvVar(value);
           }
 
-          // If it's a project .env file, skip loading excluded variables.
+          // If it's a project .env file, skip loading excluded variables and restricted ones.
           if (isProjectEnvFile) {
-            if (RESTRICTED_WORKSPACE_ENV_VARS.has(key)) {
+            const normalizedKey = key.toUpperCase();
+            if (RESTRICTED_WORKSPACE_ENV_VARS.has(normalizedKey)) {
               coreEvents.emitFeedback(
                 'warning',
                 `Security Warning: Workspace .env file attempted to set restricted environment variable "${key}". This was blocked for your safety.`,

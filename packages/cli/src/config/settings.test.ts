@@ -2176,7 +2176,9 @@ describe('Settings Loading and Merging', () => {
         source: 'file',
       });
 
-      (mockFsExistsSync as Mock).mockImplementation((p: fs.PathLike) => path.resolve(p.toString()) === workspaceEnvPath);
+      (mockFsExistsSync as Mock).mockImplementation(
+        (p: fs.PathLike) => path.resolve(p.toString()) === workspaceEnvPath,
+      );
 
       (fs.readFileSync as Mock).mockImplementation(
         (p: fs.PathOrFileDescriptor) => {
@@ -2202,6 +2204,99 @@ describe('Settings Loading and Merging', () => {
         'warning',
         expect.stringContaining('Security Warning'),
       );
+    });
+
+    it('blocks restricted variables case-insensitively', () => {
+      const workspaceEnvPath = path.resolve(
+        path.join(MOCK_WORKSPACE_DIR, '.env'),
+      );
+
+      (mockFsExistsSync as Mock).mockImplementation(
+        (p: fs.PathLike) => path.resolve(p.toString()) === workspaceEnvPath,
+      );
+
+      (fs.readFileSync as Mock).mockImplementation(
+        (p: fs.PathOrFileDescriptor) => {
+          if (path.resolve(p.toString()) === workspaceEnvPath) {
+            return 'node_options=--inspect\nShell=/bin/evil\npath=/tmp/bin';
+          }
+          return '';
+        },
+      );
+
+      delete process.env['node_options'];
+      delete process.env['Shell'];
+      delete process.env['path'];
+
+      loadEnvironment(createTestMergedSettings(), MOCK_WORKSPACE_DIR);
+
+      expect(process.env['node_options']).toBeUndefined();
+      expect(process.env['Shell']).toBeUndefined();
+      expect(process.env['path']).toBeUndefined();
+      expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
+        'warning',
+        expect.stringContaining('Security Warning'),
+      );
+    });
+
+    it('identifies project .env files robustly even if path contains .gemini', () => {
+      const trickyWorkspaceDir = path.resolve(
+        '/mock/home/user/my.gemini.tools',
+      );
+      const trickyEnvPath = path.join(trickyWorkspaceDir, '.env');
+
+      (mockFsExistsSync as Mock).mockImplementation(
+        (p: fs.PathLike) => path.resolve(p.toString()) === trickyEnvPath,
+      );
+
+      (fs.readFileSync as Mock).mockImplementation(
+        (p: fs.PathOrFileDescriptor) => {
+          if (path.resolve(p.toString()) === trickyEnvPath) {
+            return 'NODE_OPTIONS=--inspect';
+          }
+          return '';
+        },
+      );
+
+      delete process.env['NODE_OPTIONS'];
+
+      loadEnvironment(createTestMergedSettings(), trickyWorkspaceDir);
+
+      // It SHOULD be blocked because it's not the global .gemini/.env
+      expect(process.env['NODE_OPTIONS']).toBeUndefined();
+      expect(mockCoreEvents.emitFeedback).toHaveBeenCalledWith(
+        'warning',
+        expect.stringContaining('Security Warning'),
+      );
+    });
+
+    it('blocks newly added dangerous variables (PATH, LD_LIBRARY_PATH, etc.)', () => {
+      const workspaceEnvPath = path.resolve(
+        path.join(MOCK_WORKSPACE_DIR, '.env'),
+      );
+
+      (mockFsExistsSync as Mock).mockImplementation(
+        (p: fs.PathLike) => path.resolve(p.toString()) === workspaceEnvPath,
+      );
+
+      (fs.readFileSync as Mock).mockImplementation(
+        (p: fs.PathOrFileDescriptor) => {
+          if (path.resolve(p.toString()) === workspaceEnvPath) {
+            return 'PATH=/tmp/evil\nLD_LIBRARY_PATH=/tmp/evil\nDYLD_LIBRARY_PATH=/tmp/evil';
+          }
+          return '';
+        },
+      );
+
+      delete process.env['PATH'];
+      delete process.env['LD_LIBRARY_PATH'];
+      delete process.env['DYLD_LIBRARY_PATH'];
+
+      loadEnvironment(createTestMergedSettings(), MOCK_WORKSPACE_DIR);
+
+      expect(process.env['PATH']).toBeUndefined();
+      expect(process.env['LD_LIBRARY_PATH']).toBeUndefined();
+      expect(process.env['DYLD_LIBRARY_PATH']).toBeUndefined();
     });
   });
 
