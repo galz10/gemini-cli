@@ -40,6 +40,7 @@ import { FORCE_ENCRYPTED_FILE_ENV_VAR } from '../mcp/token-storage/index.js';
 import { GEMINI_DIR, homedir as pathsHomedir } from '../utils/paths.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { writeToStdout } from '../utils/stdio.js';
+import { discoverProjectId } from '../utils/projectDiscovery.js';
 import {
   FatalCancellationError,
   FatalAuthenticationError,
@@ -63,6 +64,10 @@ vi.mock('../utils/paths.js', async (importOriginal) => {
     homedir: vi.fn(),
   };
 });
+
+vi.mock('../utils/projectDiscovery.js', () => ({
+  discoverProjectId: vi.fn(),
+}));
 
 vi.mock('google-auth-library');
 vi.mock('http');
@@ -111,9 +116,10 @@ const mockConfig = {
   isBrowserLaunchSuppressed: () => false,
   getAcpMode: () => false,
   isInteractive: () => true,
-  projectId: undefined,
+  projectId: undefined as string | undefined,
   setProjectId(id: string | undefined) {
-    this.projectId = id as any;
+     
+    (this as { projectId: string | undefined }).projectId = id;
   },
 } as unknown as Config;
 
@@ -567,19 +573,13 @@ describe('oauth2', () => {
 
       it('should discover project ID via ADC if not provided', async () => {
         const mockProjectId = 'discovered-project-id';
-        const mockGoogleAuthInstance = {
-          getProjectId: vi.fn().mockResolvedValue(mockProjectId),
-          getClient: vi.fn(),
-        };
-        (GoogleAuth as unknown as Mock).mockImplementation(
-          () => mockGoogleAuthInstance,
-        );
+        vi.mocked(discoverProjectId).mockResolvedValue(mockProjectId);
 
         const setProjectIdSpy = vi.spyOn(mockConfig, 'setProjectId');
 
         await getOauthClient(AuthType.COMPUTE_ADC, mockConfig);
 
-        expect(mockGoogleAuthInstance.getProjectId).toHaveBeenCalled();
+        expect(discoverProjectId).toHaveBeenCalled();
         expect(setProjectIdSpy).toHaveBeenCalledWith(mockProjectId);
       });
 

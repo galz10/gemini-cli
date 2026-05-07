@@ -474,17 +474,25 @@ export class CodeAssistServer implements ContentGenerator {
     url: string,
     signal?: AbortSignal,
   ): Promise<T> {
-    const res = await this.client.request<T>({
-      url,
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.httpOptions.headers,
-      },
-      responseType: 'json',
-      signal,
-    });
-    return res.data;
+    try {
+      const res = await this.client.request<T>({
+        url,
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.httpOptions.headers,
+        },
+        responseType: 'json',
+        signal,
+      });
+      return res.data;
+    } catch (error) {
+      debugLogger.error(`API request failed: GET ${url}`, {
+        projectId: this.projectId,
+        error: getErrorMessage(error),
+      });
+      throw error;
+    }
   }
 
   async requestGet<T>(method: string, signal?: AbortSignal): Promise<T> {

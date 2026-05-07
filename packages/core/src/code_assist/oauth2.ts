@@ -22,6 +22,7 @@ import open from 'open';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import type { Config } from '../config/config.js';
+import { discoverProjectId } from '../utils/projectDiscovery.js';
 import {
   getErrorMessage,
   FatalAuthenticationError,
@@ -215,23 +216,10 @@ async function initOauthClient(
       await computeClient.getAccessToken();
 
       // Attempt to discover project ID if not already set in environment or config
-      if (
-        !config.projectId &&
-        !process.env['GOOGLE_CLOUD_PROJECT'] &&
-        !process.env['GOOGLE_CLOUD_PROJECT_ID']
-      ) {
-        try {
-          const auth = new GoogleAuth();
-          const projectId = await auth.getProjectId();
-          if (projectId) {
-            debugLogger.log(`Discovered project ID via ADC: ${projectId}`);
-            config.setProjectId(projectId);
-          }
-        } catch (projectIdError) {
-          debugLogger.warn(
-            'Failed to discover project ID via ADC:',
-            getErrorMessage(projectIdError),
-          );
+      if (!config.projectId) {
+        const projectId = await discoverProjectId();
+        if (projectId) {
+          config.setProjectId(projectId);
         }
       }
 

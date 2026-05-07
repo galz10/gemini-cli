@@ -57,6 +57,7 @@ import {
   ListBackgroundProcessesTool,
   ReadBackgroundOutputTool,
 } from '../tools/shellBackgroundTools.js';
+import { discoverProjectId } from '../utils/projectDiscovery.js';
 import { GeminiClient } from '../core/client.js';
 import { BaseLlmClient } from '../core/baseLlmClient.js';
 import { LocalLiteRtLmClient } from '../core/localLiteRtLmClient.js';
@@ -1443,6 +1444,14 @@ export class Config implements McpContext, AgentLoopContext {
 
   private async _initialize(): Promise<void> {
     await this.storage.initialize();
+
+    // Attempt to discover project ID if not explicitly provided
+    if (!this.projectId) {
+      const discoveredId = await discoverProjectId();
+      if (discoveredId) {
+        this.setProjectId(discoveredId);
+      }
+    }
 
     // Add pending directories to workspace context
     for (const dir of this.pendingIncludeDirectories) {
