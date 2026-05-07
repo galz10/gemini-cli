@@ -808,7 +808,7 @@ describe('oauth2', () => {
     });
 
     describe('error handling', () => {
-      it('should handle browser launch failure with FatalAuthenticationError', async () => {
+      it('should handle browser launch failure with FatalAuthenticationError and cleanup server', async () => {
         const mockError = new Error('Browser launch failed');
         (open as Mock).mockRejectedValue(mockError);
 
@@ -818,9 +818,21 @@ describe('oauth2', () => {
         } as unknown as OAuth2Client;
         vi.mocked(OAuth2Client).mockImplementation(() => mockOAuth2Client);
 
+        const mockHttpServer = {
+          listen: vi.fn(),
+          close: vi.fn(),
+          on: vi.fn(),
+          address: () => ({ port: 3000 }),
+        };
+        (http.createServer as Mock).mockImplementation(
+          () => mockHttpServer as unknown as http.Server,
+        );
+
         await expect(
           getOauthClient(AuthType.LOGIN_WITH_GOOGLE, mockConfig),
         ).rejects.toThrow('Failed to open browser: Browser launch failed');
+
+        expect(mockHttpServer.close).toHaveBeenCalled();
       });
 
       it('should handle authentication timeout with proper error message', async () => {

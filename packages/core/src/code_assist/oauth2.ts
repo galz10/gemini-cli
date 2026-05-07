@@ -292,100 +292,105 @@ async function initOauthClient(
 
     const webLogin = await authWithWeb(client);
 
-    coreEvents.emit(CoreEvent.UserFeedback, {
-      severity: 'info',
-      message:
-        `\n\nAttempting to open authentication page in your browser.\n` +
-        `Otherwise navigate to:\n\n${webLogin.authUrl}\n\n\n`,
-    });
     try {
-      // Attempt to open the authentication URL in the default browser.
-      // We do not use the `wait` option here because the main script's execution
-      // is already paused by `loginCompletePromise`, which awaits the server callback.
-      const childProcess = await open(webLogin.authUrl);
+      coreEvents.emit(CoreEvent.UserFeedback, {
+        severity: 'info',
+        message:
+          `\n\nAttempting to open authentication page in your browser.\n` +
+          `Otherwise navigate to:\n\n${webLogin.authUrl}\n\n\n`,
+      });
+      try {
+        // Attempt to open the authentication URL in the default browser.
+        // We do not use the `wait` option here because the main script's execution
+        // is already paused by `loginCompletePromise`, which awaits the server callback.
+        const childProcess = await open(webLogin.authUrl);
 
-      // IMPORTANT: Attach an error handler to the returned child process.
-      // Without this, if `open` fails to spawn a process (e.g., `xdg-open` is not found
-      // in a minimal Docker container), it will emit an unhandled 'error' event,
-      // causing the entire Node.js process to crash.
-      childProcess.on('error', (error) => {
+        // IMPORTANT: Attach an error handler to the returned child process.
+        // Without this, if `open` fails to spawn a process (e.g., `xdg-open` is not found
+        // in a minimal Docker container), it will emit an unhandled 'error' event,
+        // causing the entire Node.js process to crash.
+        childProcess.on('error', (error) => {
+          coreEvents.emit(CoreEvent.UserFeedback, {
+            severity: 'error',
+            message:
+              `Failed to open browser with error: ${getErrorMessage(error)}\n` +
+              `Please try running again with NO_BROWSER=true set.`,
+          });
+        });
+      } catch (err) {
         coreEvents.emit(CoreEvent.UserFeedback, {
           severity: 'error',
           message:
-            `Failed to open browser with error: ${getErrorMessage(error)}\n` +
+            `Failed to open browser with error: ${getErrorMessage(err)}\n` +
             `Please try running again with NO_BROWSER=true set.`,
         });
-      });
-    } catch (err) {
-      coreEvents.emit(CoreEvent.UserFeedback, {
-        severity: 'error',
-        message:
-          `Failed to open browser with error: ${getErrorMessage(err)}\n` +
-          `Please try running again with NO_BROWSER=true set.`,
-      });
-      throw new FatalAuthenticationError(
-        `Failed to open browser: ${getErrorMessage(err)}`,
-      );
-    }
-    coreEvents.emit(CoreEvent.UserFeedback, {
-      severity: 'info',
-      message: 'Waiting for authentication...\n',
-    });
-
-    // Add timeout to prevent infinite waiting when browser tab gets stuck
-    const authTimeout = 5 * 60 * 1000; // 5 minutes timeout
-    let timeoutId: NodeJS.Timeout | undefined;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(
-          new FatalAuthenticationError(
-            'Authentication timed out after 5 minutes. The browser tab may have gotten stuck in a loading state. ' +
-              'Please try again or use NO_BROWSER=true for manual authentication.',
-          ),
+        throw new FatalAuthenticationError(
+          `Failed to open browser: ${getErrorMessage(err)}`,
         );
-      }, authTimeout);
-    });
+      }
+      coreEvents.emit(CoreEvent.UserFeedback, {
+        severity: 'info',
+        message: 'Waiting for authentication...\n',
+      });
 
-    // Listen for SIGINT to stop waiting for auth so the terminal doesn't hang
-    // if the user chooses not to auth.
-    let sigIntHandler: (() => void) | undefined;
-    let stdinHandler: ((data: Buffer) => void) | undefined;
-    const cancellationPromise = new Promise<never>((_, reject) => {
-      sigIntHandler = () =>
-        reject(new FatalCancellationError('Authentication cancelled by user.'));
-      process.on('SIGINT', sigIntHandler);
+      // Add timeout to prevent infinite waiting when browser tab gets stuck
+      const authTimeout = 5 * 60 * 1000; // 5 minutes timeout
+      let timeoutId: NodeJS.Timeout | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new FatalAuthenticationError(
+              'Authentication timed out after 5 minutes. The browser tab may have gotten stuck in a loading state. ' +
+                'Please try again or use NO_BROWSER=true for manual authentication.',
+            ),
+          );
+        }, authTimeout);
+      });
 
-      // Note that SIGINT might not get raised on Ctrl+C in raw mode
-      // so we also need to look for Ctrl+C directly in stdin.
-      // Only match a lone 0x03 byte — some terminals (e.g. Ghostty) embed
-      // 0x03 inside multi-byte escape sequences, causing false cancellations.
-      stdinHandler = (data: Buffer) => {
-        if (data.length === 1 && data[0] === 0x03) {
+      // Listen for SIGINT to stop waiting for auth so the terminal doesn't hang
+      // if the user chooses not to auth.
+      let sigIntHandler: (() => void) | undefined;
+      let stdinHandler: ((data: Buffer) => void) | undefined;
+      const cancellationPromise = new Promise<never>((_, reject) => {
+        sigIntHandler = () =>
           reject(
             new FatalCancellationError('Authentication cancelled by user.'),
           );
-        }
-      };
-      process.stdin.on('data', stdinHandler);
-    });
+        process.on('SIGINT', sigIntHandler);
 
-    try {
-      await Promise.race([
-        webLogin.loginCompletePromise,
-        timeoutPromise,
-        cancellationPromise,
-      ]);
+        // Note that SIGINT might not get raised on Ctrl+C in raw mode
+        // so we also need to look for Ctrl+C directly in stdin.
+        // Only match a lone 0x03 byte — some terminals (e.g. Ghostty) embed
+        // 0x03 inside multi-byte escape sequences, causing false cancellations.
+        stdinHandler = (data: Buffer) => {
+          if (data.length === 1 && data[0] === 0x03) {
+            reject(
+              new FatalCancellationError('Authentication cancelled by user.'),
+            );
+          }
+        };
+        process.stdin.on('data', stdinHandler);
+      });
+
+      try {
+        await Promise.race([
+          webLogin.loginCompletePromise,
+          timeoutPromise,
+          cancellationPromise,
+        ]);
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (sigIntHandler) {
+          process.removeListener('SIGINT', sigIntHandler);
+        }
+        if (stdinHandler) {
+          process.stdin.removeListener('data', stdinHandler);
+        }
+      }
     } finally {
       webLogin.cleanup();
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (sigIntHandler) {
-        process.removeListener('SIGINT', sigIntHandler);
-      }
-      if (stdinHandler) {
-        process.stdin.removeListener('data', stdinHandler);
-      }
     }
 
     coreEvents.emit(CoreEvent.UserFeedback, {
@@ -520,103 +525,107 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
     state,
   });
 
-  let isClosed = false;
-  let server: http.Server;
+  let isServerClosed = false;
   const cleanup = () => {
-    if (server && !isClosed) {
+    if (server && !isServerClosed) {
       server.close();
-      isClosed = true;
+      isServerClosed = true;
     }
   };
 
-  const loginCompletePromise = new Promise<void>((resolve, reject) => {
-    server = http.createServer(async (req, res) => {
-      try {
-        if (req.url!.indexOf('/oauth2callback') === -1) {
-          res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
-          res.end();
-          reject(
-            new FatalAuthenticationError(
-              'OAuth callback not received. Unexpected request: ' + req.url,
-            ),
-          );
-          return;
-        }
-        // acquire the code from the querystring, and close the web server.
-        const qs = new url.URL(req.url!, 'http://127.0.0.1:3000').searchParams;
-        if (qs.get('error')) {
-          res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
-          res.end();
-
-          const errorCode = qs.get('error');
-          const errorDescription =
-            qs.get('error_description') || 'No additional details provided';
-          reject(
-            new FatalAuthenticationError(
-              `Google OAuth error: ${errorCode}. ${errorDescription}`,
-            ),
-          );
-        } else if (qs.get('state') !== state) {
-          res.end('State mismatch. Possible CSRF attack');
-
-          reject(
-            new FatalAuthenticationError(
-              'OAuth state mismatch. Possible CSRF attack or browser session issue.',
-            ),
-          );
-        } else if (qs.get('code')) {
-          try {
-            const { tokens } = await client.getToken({
-              code: qs.get('code')!,
-              redirect_uri: redirectUri,
-            });
-            client.setCredentials(tokens);
-
-            // Retrieve and cache Google Account ID during authentication
-            try {
-              await fetchAndCacheUserInfo(client);
-            } catch (error) {
-              debugLogger.warn(
-                'Failed to retrieve Google Account ID during authentication:',
-                getErrorMessage(error),
-              );
-              // Don't fail the auth flow if Google Account ID retrieval fails
-            }
-
-            res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_SUCCESS_URL });
-            res.end();
-            resolve();
-          } catch (error) {
-            res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
-            res.end();
-            reject(
-              new FatalAuthenticationError(
-                `Failed to exchange authorization code for tokens: ${getErrorMessage(error)}`,
-              ),
-            );
-          }
-        } else {
-          reject(
-            new FatalAuthenticationError(
-              'No authorization code received from Google OAuth. Please try authenticating again.',
-            ),
-          );
-        }
-      } catch (e) {
-        // Provide more specific error message for unexpected errors during OAuth flow
-        if (e instanceof FatalAuthenticationError) {
-          reject(e);
-        } else {
-          reject(
-            new FatalAuthenticationError(
-              `Unexpected error during OAuth authentication: ${getErrorMessage(e)}`,
-            ),
-          );
-        }
-      } finally {
-        cleanup();
+  const server = http.createServer(async (req, res) => {
+    try {
+      if (req.url!.indexOf('/oauth2callback') === -1) {
+        res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
+        res.end();
+        reject(
+          new FatalAuthenticationError(
+            'OAuth callback not received. Unexpected request: ' + req.url,
+          ),
+        );
+        return;
       }
-    });
+      // acquire the code from the querystring, and close the web server.
+      const qs = new url.URL(req.url!, 'http://127.0.0.1:3000').searchParams;
+      if (qs.get('error')) {
+        res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
+        res.end();
+
+        const errorCode = qs.get('error');
+        const errorDescription =
+          qs.get('error_description') || 'No additional details provided';
+        reject(
+          new FatalAuthenticationError(
+            `Google OAuth error: ${errorCode}. ${errorDescription}`,
+          ),
+        );
+      } else if (qs.get('state') !== state) {
+        res.end('State mismatch. Possible CSRF attack');
+
+        reject(
+          new FatalAuthenticationError(
+            'OAuth state mismatch. Possible CSRF attack or browser session issue.',
+          ),
+        );
+      } else if (qs.get('code')) {
+        try {
+          const { tokens } = await client.getToken({
+            code: qs.get('code')!,
+            redirect_uri: redirectUri,
+          });
+          client.setCredentials(tokens);
+
+          // Retrieve and cache Google Account ID during authentication
+          try {
+            await fetchAndCacheUserInfo(client);
+          } catch (error) {
+            debugLogger.warn(
+              'Failed to retrieve Google Account ID during authentication:',
+              getErrorMessage(error),
+            );
+            // Don't fail the auth flow if Google Account ID retrieval fails
+          }
+
+          res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_SUCCESS_URL });
+          res.end();
+          resolve();
+        } catch (error) {
+          res.writeHead(HTTP_REDIRECT, { Location: SIGN_IN_FAILURE_URL });
+          res.end();
+          reject(
+            new FatalAuthenticationError(
+              `Failed to exchange authorization code for tokens: ${getErrorMessage(error)}`,
+            ),
+          );
+        }
+      } else {
+        reject(
+          new FatalAuthenticationError(
+            'No authorization code received from Google OAuth. Please try authenticating again.',
+          ),
+        );
+      }
+    } catch (e) {
+      // Provide more specific error message for unexpected errors during OAuth flow
+      if (e instanceof FatalAuthenticationError) {
+        reject(e);
+      } else {
+        reject(
+          new FatalAuthenticationError(
+            `Unexpected error during OAuth authentication: ${getErrorMessage(e)}`,
+          ),
+        );
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  let reject: (reason?: Error) => void;
+  let resolve: () => void;
+  const loginCompletePromise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
 
     server.listen(port, host, () => {
       // Server started successfully
@@ -629,10 +638,6 @@ async function authWithWeb(client: OAuth2Client): Promise<OauthWebLogin> {
         ),
       );
     });
-  }).catch((e) => {
-    // Ensure cleanup is called if the promise rejects from server errors
-    cleanup();
-    throw e;
   });
 
   return {
