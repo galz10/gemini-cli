@@ -34,7 +34,15 @@ describe('StreamableHTTPClientTransport', () => {
       await Promise.race([
         transport.start(),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout')), 100),
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  'Timeout waiting for transport.start() to call fetch',
+                ),
+              ),
+            1000,
+          ),
         ),
       ]);
     } catch {

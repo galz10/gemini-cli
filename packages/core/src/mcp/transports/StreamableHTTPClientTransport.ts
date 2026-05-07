@@ -6,7 +6,6 @@
 
 import { StreamableHTTPClientTransport as BaseStreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 
 /**
  * A specialized StreamableHTTPClientTransport that ensures Authorization headers
@@ -32,8 +31,11 @@ export class StreamableHTTPClientTransport extends BaseStreamableHTTPClientTrans
 
     // Re-bind the internal _fetch property to a wrapper that ensures headers are merged.
     // We use a plain object for merged headers to ensure compatibility with all fetch implementations.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion, @typescript-eslint/no-explicit-any
-    (this as any)._fetch = async (url: URL | string, init?: RequestInit) => {
+    type InternalTransport = {
+      _fetch: (url: URL | string, init?: RequestInit) => Promise<Response>;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
+    (this as unknown as InternalTransport)._fetch = async (url, init) => {
       const mergedHeaders: Record<string, string> = {};
 
       // Helper to normalize headers from various formats (Headers object, Array, Record)
@@ -60,11 +62,5 @@ export class StreamableHTTPClientTransport extends BaseStreamableHTTPClientTrans
 
       return baseFetch(url, mergedInit);
     };
-  }
-
-  override async send(
-    message: JSONRPCMessage | JSONRPCMessage[],
-  ): Promise<void> {
-    return super.send(message);
   }
 }
