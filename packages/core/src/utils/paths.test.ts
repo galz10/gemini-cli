@@ -22,38 +22,15 @@ import {
 } from './paths.js';
 
 describe('normalizeDriveLetter', () => {
-  it('should uppercase drive letter on Windows', () => {
-    // Mock process.platform
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, 'platform', {
-      value: 'win32',
-      configurable: true,
-    });
-
-    expect(normalizeDriveLetter('c:\\foo')).toBe('C:\\foo');
-    expect(normalizeDriveLetter('D:\\bar')).toBe('D:\\bar');
-    expect(normalizeDriveLetter('z:/baz')).toBe('Z:/baz');
-
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-      configurable: true,
-    });
+  it('should lowercase drive letter on Windows', () => {
+    expect(normalizeDriveLetter('c:\\foo', 'win32')).toBe('c:\\foo');
+    expect(normalizeDriveLetter('D:\\bar', 'win32')).toBe('d:\\bar');
+    expect(normalizeDriveLetter('z:/baz', 'win32')).toBe('z:/baz');
   });
 
   it('should not change paths on non-Windows', () => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, 'platform', {
-      value: 'linux',
-      configurable: true,
-    });
-
-    expect(normalizeDriveLetter('c:\\foo')).toBe('c:\\foo');
-    expect(normalizeDriveLetter('/etc/passwd')).toBe('/etc/passwd');
-
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-      configurable: true,
-    });
+    expect(normalizeDriveLetter('c:\\foo', 'linux')).toBe('c:\\foo');
+    expect(normalizeDriveLetter('/etc/passwd', 'linux')).toBe('/etc/passwd');
   });
 });
 
@@ -255,70 +232,72 @@ describe('isSubpath', () => {
   });
 });
 
-describe.skipIf(process.platform !== 'win32')('isSubpath on Windows', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  beforeEach(() => mockPlatform('win32'));
-
+describe('isSubpath on Windows', () => {
   it('should return true for a direct subpath on Windows', () => {
-    expect(isSubpath('C:\\Users\\Test', 'C:\\Users\\Test\\file.txt')).toBe(
-      true,
-    );
+    expect(
+      isSubpath('C:\\Users\\Test', 'C:\\Users\\Test\\file.txt', 'win32'),
+    ).toBe(true);
   });
 
   it('should return true for the same path on Windows', () => {
-    expect(isSubpath('C:\\Users\\Test', 'C:\\Users\\Test')).toBe(true);
+    expect(isSubpath('C:\\Users\\Test', 'C:\\Users\\Test', 'win32')).toBe(true);
   });
 
   it('should return false for a parent path on Windows', () => {
-    expect(isSubpath('C:\\Users\\Test\\file.txt', 'C:\\Users\\Test')).toBe(
+    expect(
+      isSubpath('C:\\Users\\Test\\file.txt', 'C:\\Users\\Test', 'win32'),
+    ).toBe(false);
+  });
+
+  it('should return false for a different drive on Windows', () => {
+    expect(isSubpath('C:\\Users\\Test', 'D:\\Users\\Test', 'win32')).toBe(
       false,
     );
   });
 
-  it('should return false for a different drive on Windows', () => {
-    expect(isSubpath('C:\\Users\\Test', 'D:\\Users\\Test')).toBe(false);
-  });
-
   it('should be case-insensitive for drive letters on Windows', () => {
-    expect(isSubpath('c:\\Users\\Test', 'C:\\Users\\Test\\file.txt')).toBe(
-      true,
-    );
+    expect(
+      isSubpath('c:\\Users\\Test', 'C:\\Users\\Test\\file.txt', 'win32'),
+    ).toBe(true);
   });
 
   it('should be case-insensitive for path components on Windows', () => {
-    expect(isSubpath('C:\\Users\\Test', 'c:\\users\\test\\file.txt')).toBe(
-      true,
-    );
+    expect(
+      isSubpath('C:\\Users\\Test', 'c:\\users\\test\\file.txt', 'win32'),
+    ).toBe(true);
   });
 
   it('should handle mixed slashes on Windows', () => {
-    expect(isSubpath('C:/Users/Test', 'C:\\Users\\Test\\file.txt')).toBe(true);
+    expect(
+      isSubpath('C:/Users/Test', 'C:\\Users\\Test\\file.txt', 'win32'),
+    ).toBe(true);
   });
 
   it('should handle trailing slashes on Windows', () => {
-    expect(isSubpath('C:\\Users\\Test\\', 'C:\\Users\\Test\\file.txt')).toBe(
-      true,
-    );
+    expect(
+      isSubpath('C:\\Users\\Test\\', 'C:\\Users\\Test\\file.txt', 'win32'),
+    ).toBe(true);
   });
 
   it('should handle relative paths correctly on Windows', () => {
-    expect(isSubpath('Users\\Test', 'Users\\Test\\file.txt')).toBe(true);
-    expect(isSubpath('Users\\Test\\file.txt', 'Users\\Test')).toBe(false);
+    expect(isSubpath('Users\\Test', 'Users\\Test\\file.txt', 'win32')).toBe(
+      true,
+    );
+    expect(isSubpath('Users\\Test\\file.txt', 'Users\\Test', 'win32')).toBe(
+      false,
+    );
   });
 });
 
-describe.skipIf(process.platform !== 'darwin')('isSubpath on Darwin', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  beforeEach(() => mockPlatform('darwin'));
-
+describe('isSubpath on Darwin', () => {
   it('should be case-insensitive for path components on Darwin', () => {
-    expect(isSubpath('/PROJECT', '/project/src')).toBe(true);
+    expect(isSubpath('/PROJECT', '/project/src', 'darwin')).toBe(true);
   });
 
   it('should return true for a direct subpath on Darwin', () => {
-    expect(isSubpath('/Users/Test', '/Users/Test/file.txt')).toBe(true);
+    expect(isSubpath('/Users/Test', '/Users/Test/file.txt', 'darwin')).toBe(
+      true,
+    );
   });
 });
 
@@ -641,49 +620,49 @@ describe('resolveToRealPath', () => {
 });
 
 describe('makeRelative', () => {
-  describe.skipIf(process.platform === 'win32')('on POSIX', () => {
+  describe('on POSIX', () => {
     it('should return relative path if targetPath is already relative', () => {
-      expect(makeRelative('foo/bar', '/root')).toBe('foo/bar');
+      expect(makeRelative('foo/bar', '/root', 'linux')).toBe('foo/bar');
     });
 
     it('should return relative path from root to target', () => {
       const root = '/Users/test/project';
       const target = '/Users/test/project/src/file.ts';
-      expect(makeRelative(target, root)).toBe('src/file.ts');
+      expect(makeRelative(target, root, 'linux')).toBe('src/file.ts');
     });
 
     it('should return "." if target and root are the same', () => {
       const root = '/Users/test/project';
-      expect(makeRelative(root, root)).toBe('.');
+      expect(makeRelative(root, root, 'linux')).toBe('.');
     });
 
     it('should handle parent directories with ..', () => {
       const root = '/Users/test/project/src';
       const target = '/Users/test/project/docs/readme.md';
-      expect(makeRelative(target, root)).toBe('../docs/readme.md');
+      expect(makeRelative(target, root, 'linux')).toBe('../docs/readme.md');
     });
   });
 
-  describe.skipIf(process.platform !== 'win32')('on Windows', () => {
+  describe('on Windows', () => {
     it('should return relative path if targetPath is already relative', () => {
-      expect(makeRelative('foo/bar', 'C:\\root')).toBe('foo/bar');
+      expect(makeRelative('foo/bar', 'C:\\root', 'win32')).toBe('foo/bar');
     });
 
     it('should return relative path from root to target', () => {
       const root = 'C:\\Users\\test\\project';
       const target = 'C:\\Users\\test\\project\\src\\file.ts';
-      expect(makeRelative(target, root)).toBe('src\\file.ts');
+      expect(makeRelative(target, root, 'win32')).toBe('src\\file.ts');
     });
 
     it('should return "." if target and root are the same', () => {
       const root = 'C:\\Users\\test\\project';
-      expect(makeRelative(root, root)).toBe('.');
+      expect(makeRelative(root, root, 'win32')).toBe('.');
     });
 
     it('should handle parent directories with ..', () => {
       const root = 'C:\\Users\\test\\project\\src';
       const target = 'C:\\Users\\test\\project\\docs\\readme.md';
-      expect(makeRelative(target, root)).toBe('..\\docs\\readme.md');
+      expect(makeRelative(target, root, 'win32')).toBe('..\\docs\\readme.md');
     });
   });
 });
@@ -699,45 +678,40 @@ describe('normalizePath', () => {
     expect(result).not.toContain('\\');
   });
 
-  describe.skipIf(process.platform !== 'win32')('on Windows', () => {
+  describe('on Windows', () => {
     it('should lowercase the entire path', () => {
-      const result = normalizePath('C:\\Users\\TEST');
+      const result = normalizePath('C:\\Users\\TEST', 'win32');
       expect(result).toBe(result.toLowerCase());
     });
 
     it('should normalize drive letters to lowercase', () => {
-      const result = normalizePath('C:\\');
+      const result = normalizePath('C:\\', 'win32');
       expect(result).toMatch(/^c:\//);
     });
 
     it('should handle mixed separators', () => {
-      const result = normalizePath('C:/Users\\Test/file.txt');
+      const result = normalizePath('C:/Users\\Test/file.txt', 'win32');
       expect(result).not.toContain('\\');
       expect(result).toMatch(/^c:\/users\/test\/file\.txt$/);
     });
   });
 
-  describe.skipIf(process.platform !== 'darwin')('on Darwin', () => {
-    beforeEach(() => mockPlatform('darwin'));
-    afterEach(() => vi.unstubAllGlobals());
-
+  describe('on Darwin', () => {
     it('should lowercase the entire path', () => {
-      const result = normalizePath('/Users/TEST');
+      const result = normalizePath('/Users/TEST', 'darwin');
       expect(result).toBe('/users/test');
     });
   });
 
-  describe.skipIf(
-    process.platform === 'win32' || process.platform === 'darwin',
-  )('on Linux', () => {
+  describe('on Linux', () => {
     it('should preserve case', () => {
-      const result = normalizePath('/usr/Local/Bin');
+      const result = normalizePath('/usr/Local/Bin', 'linux');
       expect(result).toContain('Local');
       expect(result).toContain('Bin');
     });
 
     it('should use forward slashes', () => {
-      const result = normalizePath('/usr/local/bin');
+      const result = normalizePath('/usr/local/bin', 'linux');
       expect(result).toBe('/usr/local/bin');
     });
   });
@@ -755,17 +729,18 @@ describe('normalizePath', () => {
     });
 
     it('should handle case-insensitivity on Windows and macOS', () => {
-      mockPlatform('win32');
       const paths = ['/workspace/foo', '/Workspace/Foo'];
-      expect(deduplicateAbsolutePaths(paths)).toEqual(['/workspace/foo']);
+      expect(deduplicateAbsolutePaths(paths, 'win32')).toEqual([
+        '/workspace/foo',
+      ]);
 
-      mockPlatform('darwin');
       const macPaths = ['/tmp/foo', '/Tmp/Foo'];
-      expect(deduplicateAbsolutePaths(macPaths)).toEqual(['/tmp/foo']);
+      expect(deduplicateAbsolutePaths(macPaths, 'darwin')).toEqual([
+        '/tmp/foo',
+      ]);
 
-      mockPlatform('linux');
       const linuxPaths = ['/tmp/foo', '/tmp/FOO'];
-      expect(deduplicateAbsolutePaths(linuxPaths)).toEqual([
+      expect(deduplicateAbsolutePaths(linuxPaths, 'linux')).toEqual([
         '/tmp/foo',
         '/tmp/FOO',
       ]);
@@ -785,18 +760,15 @@ describe('normalizePath', () => {
     });
 
     it('should convert paths to lowercase on Windows and macOS', () => {
-      mockPlatform('win32');
-      expect(toPathKey('/Workspace/Foo')).toBe(
+      expect(toPathKey('/Workspace/Foo', 'win32')).toBe(
         path.normalize('/workspace/foo'),
       );
       // Ensure drive roots are preserved
-      expect(toPathKey('C:\\')).toBe('c:\\');
+      expect(toPathKey('C:\\', 'win32')).toBe('c:\\');
 
-      mockPlatform('darwin');
-      expect(toPathKey('/Tmp/Foo')).toBe(path.normalize('/tmp/foo'));
+      expect(toPathKey('/Tmp/Foo', 'darwin')).toBe(path.normalize('/tmp/foo'));
 
-      mockPlatform('linux');
-      expect(toPathKey('/Tmp/Foo')).toBe(path.normalize('/Tmp/Foo'));
+      expect(toPathKey('/Tmp/Foo', 'linux')).toBe(path.normalize('/Tmp/Foo'));
     });
   });
 });

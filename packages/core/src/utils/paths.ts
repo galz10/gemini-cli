@@ -259,12 +259,16 @@ export function shortenPath(filePath: string, maxLen: number = 35): string {
 export function makeRelative(
   targetPath: string,
   rootDirectory: string,
+  platform: NodeJS.Platform = process.platform,
 ): string {
-  if (!path.isAbsolute(targetPath)) {
+  const isWindows = platform === 'win32';
+  const pathModule = isWindows ? path.win32 : path;
+
+  if (!pathModule.isAbsolute(targetPath)) {
     return targetPath;
   }
-  const resolvedRootDirectory = path.resolve(rootDirectory);
-  const relativePath = path.relative(resolvedRootDirectory, targetPath);
+  const resolvedRootDirectory = pathModule.resolve(rootDirectory);
+  const relativePath = pathModule.relative(resolvedRootDirectory, targetPath);
 
   // If the paths are the same, path.relative returns '', return '.' instead
   return relativePath || '.';
@@ -320,12 +324,15 @@ export function getProjectHash(projectRoot: string): string {
 }
 
 /**
- * Standardizes the casing of a Windows drive letter to uppercase.
- * Example: c:\foo -> C:\foo
+ * Standardizes the casing of a Windows drive letter to lowercase.
+ * Example: C:\foo -> c:\foo
  */
-export function normalizeDriveLetter(p: string): string {
-  if (process.platform === 'win32' && /^[a-zA-Z]:/.test(p)) {
-    return p[0].toUpperCase() + p.slice(1);
+export function normalizeDriveLetter(
+  p: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform === 'win32' && /^[a-zA-Z]:/.test(p)) {
+    return p[0].toLowerCase() + p.slice(1);
   }
   return p;
 }
@@ -336,14 +343,15 @@ export function normalizeDriveLetter(p: string): string {
  * - Converts all path separators to forward slashes.
  * - On Windows, converts to lowercase for case-insensitivity.
  */
-export function normalizePath(p: string): string {
-  const platform = process.platform;
+export function normalizePath(
+  p: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
   const isWindows = platform === 'win32';
   const pathModule = isWindows ? path.win32 : path;
 
   const resolved = pathModule.resolve(p);
-  const withNormalizedDrive = normalizeDriveLetter(resolved);
-  const normalized = withNormalizedDrive.replace(/\\/g, '/');
+  const normalized = resolved.replace(/\\/g, '/');
   const isCaseInsensitive = isWindows || platform === 'darwin';
   return isCaseInsensitive ? normalized.toLowerCase() : normalized;
 }
@@ -354,21 +362,24 @@ export function normalizePath(p: string): string {
  * @param childPath The child path.
  * @returns True if childPath is a subpath of parentPath, false otherwise.
  */
-export function isSubpath(parentPath: string, childPath: string): boolean {
-  const platform = process.platform;
+export function isSubpath(
+  parentPath: string,
+  childPath: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
   const isWindows = platform === 'win32';
   const isDarwin = platform === 'darwin';
   const pathModule = isWindows ? path.win32 : path;
 
   // Resolve both paths to absolute to ensure consistent comparison,
   // especially when mixing relative and absolute paths or when casing differs.
-  let p = normalizeDriveLetter(pathModule.resolve(parentPath));
-  let c = normalizeDriveLetter(pathModule.resolve(childPath));
+  let p = pathModule.resolve(parentPath);
+  let c = pathModule.resolve(childPath);
 
   // On Windows, path.relative is case-insensitive.
   // On POSIX (including Darwin), path.relative is case-sensitive.
-  // We want it to be case-insensitive on Darwin to match user expectation and sandbox policy.
-  if (isDarwin) {
+  // We want it to be case-insensitive on Darwin and Windows to match user expectation and sandbox policy.
+  if (isDarwin || isWindows) {
     p = p.toLowerCase();
     c = c.toLowerCase();
   }
@@ -474,7 +485,10 @@ function robustRealpath(p: string, visited = new Set<string>()): string {
 /**
  * Deduplicates an array of paths and ensures all paths are absolute.
  */
-export function deduplicateAbsolutePaths(paths?: string[] | null): string[] {
+export function deduplicateAbsolutePaths(
+  paths?: string[] | null,
+  platform: NodeJS.Platform = process.platform,
+): string[] {
   if (!paths || paths.length === 0) return [];
 
   const uniquePathsMap = new Map<string, string>();
@@ -483,7 +497,7 @@ export function deduplicateAbsolutePaths(paths?: string[] | null): string[] {
       throw new Error(`Path must be absolute: ${p}`);
     }
 
-    const key = toPathKey(p);
+    const key = toPathKey(p, platform);
     if (!uniquePathsMap.has(key)) {
       uniquePathsMap.set(key, p);
     }
@@ -495,9 +509,12 @@ export function deduplicateAbsolutePaths(paths?: string[] | null): string[] {
 /**
  * Returns a stable string key for a path to be used in comparisons or Map lookups.
  */
-export function toPathKey(p: string): string {
+export function toPathKey(
+  p: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
   // Normalize path segments
-  let norm = normalizeDriveLetter(path.normalize(p));
+  let norm = path.normalize(p);
 
   // Strip trailing slashes (except for root paths)
   if (norm.length > 1 && (norm.endsWith('/') || norm.endsWith('\\'))) {
@@ -508,7 +525,6 @@ export function toPathKey(p: string): string {
   }
 
   // Convert to lowercase on case-insensitive platforms
-  const platform = process.platform;
   const isCaseInsensitive = platform === 'win32' || platform === 'darwin';
   return isCaseInsensitive ? norm.toLowerCase() : norm;
 }
