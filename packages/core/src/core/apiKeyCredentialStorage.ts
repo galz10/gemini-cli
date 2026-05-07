@@ -9,11 +9,26 @@ import type { OAuthCredentials } from '../mcp/token-storage/types.js';
 import { debugLogger } from '../utils/debugLogger.js';
 import { createCache } from '../utils/cache.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { parseGoogleApiError } from '../utils/googleErrors.js';
+import { z } from 'zod';
 
 const KEYCHAIN_SERVICE_NAME = 'gemini-cli-api-key';
 const DEFAULT_API_KEY_ENTRY = 'default-api-key';
 
+const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+
 const storage = new HybridTokenStorage(KEYCHAIN_SERVICE_NAME);
+
+const GoogleErrorResponseSchema = z.object({
+  error: z
+    .object({
+      code: z.number().optional(),
+      message: z.string().optional(),
+      status: z.string().optional(),
+      details: z.array(z.record(z.unknown())).optional(),
+    })
+    .optional(),
+});
 
 /**
  * Verifies if an API key is valid by making a minimal API call.
@@ -26,30 +41,32 @@ export async function verifyApiKey(apiKey: string): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-    );
+    const response = await fetch(`${GEMINI_API_BASE_URL}/models?key=${apiKey}`);
 
     if (response.ok) {
       return null;
     }
 
-    const data: unknown = await response.json();
+    const result = GoogleErrorResponseSchema.safeParse(await response.json());
+    const responseData = result.success ? result.data : {};
+    const googleApiError = parseGoogleApiError(responseData);
     let message = response.statusText || 'Unknown error';
 
-    if (
-      data &&
-      typeof data === 'object' &&
-      'error' in data &&
-      data.error &&
-      typeof data.error === 'object' &&
-      'message' in data.error &&
-      typeof data.error.message === 'string'
-    ) {
-      message = data.error.message;
+    if (googleApiError) {
+      message = googleApiError.message;
+    } else if (result.success && result.data.error?.message) {
+      message = result.data.error.message;
     }
 
-    if (response.status === 400 && message.includes('API_KEY_INVALID')) {
+    const isInvalidKey =
+      (response.status === 400 && message.includes('API_KEY_INVALID')) ||
+      googleApiError?.details.some(
+        (detail) =>
+          detail['@type'] === 'type.googleapis.com/google.rpc.ErrorInfo' &&
+          detail.reason === 'API_KEY_INVALID',
+      );
+
+    if (isInvalidKey) {
       return 'The provided API key is invalid. Please check your key and try again.';
     }
 
