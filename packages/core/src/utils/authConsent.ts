@@ -11,6 +11,16 @@ import { createWorkingStdio, writeToStdout } from './stdio.js';
 import { isHeadlessMode } from './headless.js';
 
 /**
+ * Maximum time to wait for the UI to register a consent request listener during startup.
+ */
+const MAX_UI_SYNC_WAIT_MS = 10000;
+
+/**
+ * Interval to poll for the existence of a UI listener.
+ */
+const UI_SYNC_POLL_INTERVAL_MS = 100;
+
+/**
  * Requests consent from the user for OAuth login.
  * Handles both interactive and non-interactive (headless) modes.
  */
@@ -23,15 +33,15 @@ export async function getConsentForOauth(prompt: string): Promise<boolean> {
     return getOauthConsentNonInteractive(finalPrompt);
   }
 
-  // Wait for up to 10 seconds for the UI to be ready and listen for consent requests.
+  // Wait for the UI to be ready and listen for consent requests.
   // This avoids a race condition during startup.
-  let attempts = 0;
+  let waitTime = 0;
   while (
     coreEvents.listenerCount(CoreEvent.ConsentRequest) === 0 &&
-    attempts < 20
+    waitTime < MAX_UI_SYNC_WAIT_MS
   ) {
-    await new Promise((f) => setTimeout(f, 500));
-    attempts++;
+    await new Promise((f) => setTimeout(f, UI_SYNC_POLL_INTERVAL_MS));
+    waitTime += UI_SYNC_POLL_INTERVAL_MS;
   }
 
   if (coreEvents.listenerCount(CoreEvent.ConsentRequest) > 0) {

@@ -4,10 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  type Mock,
+  afterEach,
+} from 'vitest';
 import readline from 'node:readline';
 import process from 'node:process';
-import { coreEvents } from './events.js';
+import { CoreEvent, coreEvents } from './events.js';
 import { getConsentForOauth } from './authConsent.js';
 import { FatalAuthenticationError } from './errors.js';
 import { writeToStdout } from './stdio.js';
@@ -28,6 +36,13 @@ vi.mock('./stdio.js', () => ({
 describe('getConsentForOauth', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.useFakeTimers();
+    // Clear all listeners to start fresh
+    coreEvents.removeAllListeners();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('in interactive mode', () => {
@@ -37,7 +52,9 @@ describe('getConsentForOauth', () => {
 
     it('should emit consent request when UI listeners are present', async () => {
       const mockEmitConsentRequest = vi.spyOn(coreEvents, 'emitConsentRequest');
-      vi.spyOn(coreEvents, 'listenerCount').mockReturnValue(1);
+
+      // Add a dummy listener
+      coreEvents.on(CoreEvent.ConsentRequest, () => {});
 
       mockEmitConsentRequest.mockImplementation((payload) => {
         payload.onConfirm(true);
@@ -55,9 +72,44 @@ describe('getConsentForOauth', () => {
       );
     });
 
+    it('should wait for UI listener and succeed when one appears', async () => {
+      const mockEmitConsentRequest = vi.spyOn(coreEvents, 'emitConsentRequest');
+      mockEmitConsentRequest.mockImplementation((payload) => {
+        payload.onConfirm(true);
+      });
+
+      const promise = getConsentForOauth('Login required.');
+
+      // Initially no listeners, so it should be waiting
+      expect(coreEvents.listenerCount(CoreEvent.ConsentRequest)).toBe(0);
+
+      // Simulate UI listener being added after a delay
+      // We need to advance time enough for the loop to run a few times
+      await vi.advanceTimersByTimeAsync(300);
+      coreEvents.on(CoreEvent.ConsentRequest, () => {});
+
+      // Advance again to trigger the next poll
+      await vi.advanceTimersByTimeAsync(100);
+
+      const result = await promise;
+      expect(result).toBe(true);
+      expect(mockEmitConsentRequest).toHaveBeenCalled();
+    });
+
+    it('should timeout and throw FatalAuthenticationError if no UI listener appears', async () => {
+      const promise = getConsentForOauth('Login required.');
+
+      // We need to advance time past the 10s timeout.
+      // We wrap both in Promise.all to ensure the rejection is handled as it happens.
+      await Promise.all([
+        expect(promise).rejects.toThrow(FatalAuthenticationError),
+        vi.advanceTimersByTimeAsync(11000),
+      ]);
+    });
+
     it('should handle empty prompt correctly', async () => {
       const mockEmitConsentRequest = vi.spyOn(coreEvents, 'emitConsentRequest');
-      vi.spyOn(coreEvents, 'listenerCount').mockReturnValue(1);
+      coreEvents.on(CoreEvent.ConsentRequest, () => {});
 
       mockEmitConsentRequest.mockImplementation((payload) => {
         payload.onConfirm(true);
@@ -76,7 +128,7 @@ describe('getConsentForOauth', () => {
 
     it('should return false when user declines via UI', async () => {
       const mockEmitConsentRequest = vi.spyOn(coreEvents, 'emitConsentRequest');
-      vi.spyOn(coreEvents, 'listenerCount').mockReturnValue(1);
+      coreEvents.on(CoreEvent.ConsentRequest, () => {});
 
       mockEmitConsentRequest.mockImplementation((payload) => {
         payload.onConfirm(false);
@@ -86,19 +138,12 @@ describe('getConsentForOauth', () => {
 
       expect(result).toBe(false);
     });
-
-    it('should throw FatalAuthenticationError when no UI listeners are present', async () => {
-      vi.spyOn(coreEvents, 'listenerCount').mockReturnValue(0);
-
-      await expect(getConsentForOauth('Login required.')).rejects.toThrow(
-        FatalAuthenticationError,
-      );
-    });
   });
 
   describe('in non-interactive mode', () => {
     beforeEach(() => {
       (isHeadlessMode as Mock).mockReturnValue(true);
+      vi.useRealTimers(); // Readline tests are easier with real timers
     });
 
     it('should use readline to prompt for consent', async () => {
