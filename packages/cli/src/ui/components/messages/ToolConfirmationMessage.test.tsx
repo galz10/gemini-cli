@@ -738,7 +738,7 @@ describe('ToolConfirmationMessage', () => {
 
       const outputLines = lastFrame().split('\n');
       // Should use the entire terminal height
-      expect(outputLines.length).toBe(36);
+      expect(outputLines.length).toBe(40);
 
       await expect({ lastFrame, generateSvg }).toMatchSvgSnapshot();
       unmount();

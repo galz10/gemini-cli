@@ -173,7 +173,7 @@ function selectionListReducer(
         return state;
       }
 
-      if (index >= 0 && index < items.length) {
+      if (index >= 0 && index < items.length && !items[index].disabled) {
         return { ...state, activeIndex: index, pendingHighlight: true };
       }
       return state;
@@ -433,6 +433,11 @@ export function useSelectionList<T>({
         }
 
         if (targetIndex >= 0 && targetIndex < itemsLength) {
+          if (items[targetIndex].disabled) {
+            numberInputRef.current = '';
+            return true;
+          }
+
           dispatch({
             type: 'SET_ACTIVE_INDEX',
             payload: { index: targetIndex },
@@ -462,7 +467,7 @@ export function useSelectionList<T>({
       }
       return false;
     },
-    [dispatch, itemsLength, showNumbers, keyMatchers],
+    [dispatch, itemsLength, showNumbers, keyMatchers, items],
   );
 
   useKeypress(handleKeypress, {

@@ -91,12 +91,12 @@ function SelectionListItemRow<
   let titleColor = theme.text.primary;
   let numberColor = theme.text.primary;
 
-  if (isSelected) {
-    titleColor = theme.ui.focus;
-    numberColor = theme.ui.focus;
-  } else if (item.disabled) {
+  if (item.disabled) {
     titleColor = theme.text.secondary;
     numberColor = theme.text.secondary;
+  } else if (isSelected) {
+    titleColor = theme.ui.focus;
+    numberColor = theme.ui.focus;
   }
 
   if (!isFocused && !item.disabled) {
@@ -116,12 +116,20 @@ function SelectionListItemRow<
       ref={containerRef}
       key={item.key}
       alignItems="flex-start"
-      backgroundColor={isSelected ? theme.background.focus : undefined}
+      backgroundColor={
+        isSelected && !item.disabled ? theme.background.focus : undefined
+      }
     >
       {/* Radio button indicator */}
       <Box minWidth={2} flexShrink={0}>
         <Text
-          color={isSelected ? theme.ui.focus : theme.text.primary}
+          color={
+            item.disabled
+              ? theme.text.secondary
+              : isSelected
+                ? theme.ui.focus
+                : theme.text.primary
+          }
           aria-hidden
         >
           {isSelected ? selectedIndicator : ' '}

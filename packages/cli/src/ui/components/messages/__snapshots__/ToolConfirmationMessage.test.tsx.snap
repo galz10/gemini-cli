@@ -6,6 +6,24 @@ exports[`ToolConfirmationMessage > enablePermanentToolApproval setting > should 
 │  No changes detected.                                                        │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Apply this change?
 
 ● 1. Allow once                                                                   
@@ -17,8 +35,7 @@ Apply this change?
 `;
 
 exports[`ToolConfirmationMessage > height allocation and layout > should expand to available height for large edit diffs 1`] = `
-"... first 5 lines hidden (Ctrl+O to show) ...
-│  9 + const newLine9 = true;                                                  │
+"... first 6 lines hidden (Ctrl+O to show) ...
 │ 10 - const oldLine10 = true;                                                 │
 │ 10 + const newLine10 = true;                                                 │
 │ 11 - const oldLine11 = true;                                                 │
@@ -43,8 +60,13 @@ exports[`ToolConfirmationMessage > height allocation and layout > should expand 
 │ 20 + const newLine20 = true;                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
-⚠  [SECURITY WARNING] This command is too long to display. You must expand the view (Ctrl+O) to
-   review the full command before allowing execution.
+
+
+
+
+
+⚠  [SECURITY WARNING] This diff is too long to display. You must expand the view (Ctrl+O) to review
+   the full content before allowing execution.
 
 Apply this change?
 
@@ -106,6 +128,23 @@ exports[`ToolConfirmationMessage > should display multiple commands for exec typ
 │                                                                              │
 │ whoami                                                                       │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of [echo, ls, whoami]?
 
 ● 1. Allow once               
@@ -119,6 +158,27 @@ exports[`ToolConfirmationMessage > should display urls if prompt and url are dif
 
 URLs to fetch:
  - https://raw.githubusercontent.com/google/gemini-react/main/README.md
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Do you want to proceed?
 
 ● 1. Allow once               
@@ -129,6 +189,30 @@ Do you want to proceed?
 
 exports[`ToolConfirmationMessage > should not display urls if prompt and url are the same 1`] = `
 "https://example.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Do you want to proceed?
 
 ● 1. Allow once               
@@ -144,6 +228,24 @@ exports[`ToolConfirmationMessage > should render multiline shell scripts with co
 │   echo $i                                                                    │
 │ done                                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of [echo]?
 
 ● 1. Allow once               
@@ -154,6 +256,28 @@ Allow execution of [echo]?
 exports[`ToolConfirmationMessage > should strip BiDi characters from MCP tool and server names 1`] = `
 "MCP Server: testserver
 Tool: testtool
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of MCP tool "testtool" from server "testserver"?
 
 ● 1. Allow once                             
@@ -169,6 +293,26 @@ exports[`ToolConfirmationMessage > with folder trust > 'for edit confirmations' 
 │  No changes detected.                                                        │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Apply this change?
 
 ● 1. Allow once                 
@@ -183,6 +327,25 @@ exports[`ToolConfirmationMessage > with folder trust > 'for edit confirmations' 
 │  No changes detected.                                                        │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Apply this change?
 
 ● 1. Allow once                 
@@ -196,6 +359,28 @@ exports[`ToolConfirmationMessage > with folder trust > 'for exec confirmations' 
 "╭──────────────────────────────────────────────────────────────────────────────╮
 │ echo "hello"                                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of [echo]?
 
 ● 1. Allow once               
@@ -207,6 +392,27 @@ exports[`ToolConfirmationMessage > with folder trust > 'for exec confirmations' 
 "╭──────────────────────────────────────────────────────────────────────────────╮
 │ echo "hello"                                                                 │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of [echo]?
 
 ● 1. Allow once               
@@ -217,6 +423,31 @@ Allow execution of [echo]?
 
 exports[`ToolConfirmationMessage > with folder trust > 'for info confirmations' > should NOT show "allow always" when folder is untrusted 1`] = `
 "https://example.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Do you want to proceed?
 
 ● 1. Allow once               
@@ -226,6 +457,30 @@ Do you want to proceed?
 
 exports[`ToolConfirmationMessage > with folder trust > 'for info confirmations' > should show "allow always" when folder is trusted 1`] = `
 "https://example.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Do you want to proceed?
 
 ● 1. Allow once               
@@ -237,6 +492,30 @@ Do you want to proceed?
 exports[`ToolConfirmationMessage > with folder trust > 'for mcp confirmations' > should NOT show "allow always" when folder is untrusted 1`] = `
 "MCP Server: test-server
 Tool: test-tool
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of MCP tool "test-tool" from server "test-server"?
 
 ● 1. Allow once               
@@ -247,6 +526,28 @@ Allow execution of MCP tool "test-tool" from server "test-server"?
 exports[`ToolConfirmationMessage > with folder trust > 'for mcp confirmations' > should show "allow always" when folder is trusted 1`] = `
 "MCP Server: test-server
 Tool: test-tool
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Allow execution of MCP tool "test-tool" from server "test-server"?
 
 ● 1. Allow once                             

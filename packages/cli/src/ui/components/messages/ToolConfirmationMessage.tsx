@@ -81,6 +81,18 @@ export const ToolConfirmationMessage: React.FC<
   });
   const [isCancelling, setIsCancelling] = useState(false);
   const [isBodyTruncated, setIsBodyTruncated] = useState(false);
+  const truncationRegistry = useRef<Record<string, boolean>>({});
+
+  const handleTruncationChange = useCallback(
+    (id: string, truncated: boolean) => {
+      truncationRegistry.current[id] = truncated;
+      const anyTruncated = Object.values(truncationRegistry.current).some(
+        (v) => v,
+      );
+      setIsBodyTruncated(anyTruncated);
+    },
+    [],
+  );
 
   const isMcpToolDetailsExpanded =
     mcpDetailsExpansionState.callId === callId
@@ -123,8 +135,18 @@ export const ToolConfirmationMessage: React.FC<
     const warnings: string[] = [];
 
     if (isBodyTruncated) {
+      const subject =
+        confirmationDetails.type === 'edit'
+          ? 'diff'
+          : confirmationDetails.type === 'exec' ||
+              confirmationDetails.type === 'sandbox_expansion'
+            ? 'command'
+            : confirmationDetails.type === 'mcp'
+              ? 'details'
+              : 'content';
+
       warnings.push(
-        `**[SECURITY WARNING]** This command is too long to display. You must expand the view (${formatCommand(Command.SHOW_MORE_LINES)}) to review the full command before allowing execution.`,
+        `**[SECURITY WARNING]** This ${subject} is too long to display. You must expand the view (${formatCommand(Command.SHOW_MORE_LINES)}) to review the full content before allowing execution.`,
       );
     }
 
@@ -141,7 +163,7 @@ export const ToolConfirmationMessage: React.FC<
 
     if (warnings.length === 0) return null;
     return warnings.join('\n\n---\n\n');
-  }, [deceptiveUrlWarnings, isBodyTruncated]);
+  }, [deceptiveUrlWarnings, isBodyTruncated, confirmationDetails.type]);
 
   const onSecurityWarningsRefChange = useCallback((node: DOMElement | null) => {
     if (observerRef.current) {
@@ -297,168 +319,166 @@ export const ToolConfirmationMessage: React.FC<
   );
 
   const getOptions = useCallback(() => {
-    const options: Array<RadioSelectItem<ToolConfirmationOutcome>> = [];
+    const rawOptions: Array<RadioSelectItem<ToolConfirmationOutcome>> = [];
 
     if (confirmationDetails.type === 'edit') {
       if (!confirmationDetails.isModifying) {
-        options.push({
+        rawOptions.push({
           label: 'Allow once',
           value: ToolConfirmationOutcome.ProceedOnce,
           key: 'Allow once',
-          disabled: isBodyTruncated,
         });
         if (isTrustedFolder) {
-          options.push({
+          rawOptions.push({
             label: 'Allow for this session',
             value: ToolConfirmationOutcome.ProceedAlways,
             key: 'Allow for this session',
-            disabled: isBodyTruncated,
           });
           if (allowPermanentApproval) {
-            options.push({
+            rawOptions.push({
               label: 'Allow for this file in all future sessions',
               value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
               key: 'Allow for this file in all future sessions',
-              disabled: isBodyTruncated,
             });
           }
         }
         // We hide "Modify with external editor" if IDE mode is active AND
         // the IDE is actually capable of showing a diff (connected).
         if (!config.getIdeMode() || !isDiffingEnabled) {
-          options.push({
+          rawOptions.push({
             label: 'Modify with external editor',
             value: ToolConfirmationOutcome.ModifyWithEditor,
             key: 'Modify with external editor',
           });
         }
 
-        options.push({
+        rawOptions.push({
           label: 'No, suggest changes (esc)',
           value: ToolConfirmationOutcome.Cancel,
           key: 'No, suggest changes (esc)',
         });
       }
     } else if (confirmationDetails.type === 'sandbox_expansion') {
-      options.push({
+      rawOptions.push({
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
-        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
-        options.push({
+        rawOptions.push({
           label: 'Allow for this session',
           value: ToolConfirmationOutcome.ProceedAlways,
           key: 'Allow for this session',
-          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
-          options.push({
+          rawOptions.push({
             label: 'Allow for all future sessions',
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: 'Allow for all future sessions',
-            disabled: isBodyTruncated,
           });
         }
       }
-      options.push({
+      rawOptions.push({
         label: 'No, suggest changes (esc)',
         value: ToolConfirmationOutcome.Cancel,
         key: 'No, suggest changes (esc)',
       });
     } else if (confirmationDetails.type === 'exec') {
-      options.push({
+      rawOptions.push({
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
-        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
-        options.push({
+        rawOptions.push({
           label: `Allow for this session`,
           value: ToolConfirmationOutcome.ProceedAlways,
           key: `Allow for this session`,
-          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
-          options.push({
+          rawOptions.push({
             label: `Allow this command for all future sessions`,
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: `Allow for all future sessions`,
-            disabled: isBodyTruncated,
           });
         }
       }
-      options.push({
+      rawOptions.push({
         label: 'No, suggest changes (esc)',
         value: ToolConfirmationOutcome.Cancel,
         key: 'No, suggest changes (esc)',
       });
     } else if (confirmationDetails.type === 'info') {
-      options.push({
+      rawOptions.push({
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
-        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
-        options.push({
+        rawOptions.push({
           label: 'Allow for this session',
           value: ToolConfirmationOutcome.ProceedAlways,
           key: 'Allow for this session',
-          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
-          options.push({
+          rawOptions.push({
             label: 'Allow for all future sessions',
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: 'Allow for all future sessions',
-            disabled: isBodyTruncated,
           });
         }
       }
-      options.push({
+      rawOptions.push({
         label: 'No, suggest changes (esc)',
         value: ToolConfirmationOutcome.Cancel,
         key: 'No, suggest changes (esc)',
       });
     } else if (confirmationDetails.type === 'mcp') {
-      options.push({
+      rawOptions.push({
         label: 'Allow once',
         value: ToolConfirmationOutcome.ProceedOnce,
         key: 'Allow once',
-        disabled: isBodyTruncated,
       });
       if (isTrustedFolder) {
-        options.push({
+        rawOptions.push({
           label: 'Allow tool for this session',
           value: ToolConfirmationOutcome.ProceedAlwaysTool,
           key: 'Allow tool for this session',
-          disabled: isBodyTruncated,
         });
-        options.push({
+        rawOptions.push({
           label: 'Allow all server tools for this session',
           value: ToolConfirmationOutcome.ProceedAlwaysServer,
           key: 'Allow all server tools for this session',
-          disabled: isBodyTruncated,
         });
         if (allowPermanentApproval) {
-          options.push({
+          rawOptions.push({
             label: 'Allow tool for all future sessions',
             value: ToolConfirmationOutcome.ProceedAlwaysAndSave,
             key: 'Allow tool for all future sessions',
-            disabled: isBodyTruncated,
           });
         }
       }
-      options.push({
+      rawOptions.push({
         label: 'No, suggest changes (esc)',
         value: ToolConfirmationOutcome.Cancel,
         key: 'No, suggest changes (esc)',
       });
     }
-    return options;
+
+    // Centralize the logic to disable "Allow" options if the content is truncated.
+    return rawOptions.map((option) => {
+      const isAllowAction =
+        option.value === ToolConfirmationOutcome.ProceedOnce ||
+        option.value === ToolConfirmationOutcome.ProceedAlways ||
+        option.value === ToolConfirmationOutcome.ProceedAlwaysAndSave ||
+        option.value === ToolConfirmationOutcome.ProceedAlwaysTool ||
+        option.value === ToolConfirmationOutcome.ProceedAlwaysServer;
+
+      if (isAllowAction && isBodyTruncated) {
+        return { ...option, disabled: true };
+      }
+      return option;
+    });
   }, [
     confirmationDetails,
     isTrustedFolder,
@@ -479,61 +499,35 @@ export const ToolConfirmationMessage: React.FC<
 
     // Calculate the vertical space (in lines) consumed by UI elements
     // surrounding the main body content.
-    const PADDING_OUTER_Y = 0;
-    const HEIGHT_QUESTION = 1;
-    const MARGIN_QUESTION_TOP = 0;
-    const MARGIN_QUESTION_BOTTOM = 1;
-    const SECURITY_WARNING_BOTTOM_MARGIN = 1;
-    const SHOW_MORE_LINES_HEIGHT = 1;
+    let surroundingHeight = 0;
 
-    const optionsCount = getOptions().length;
-
-    const securityWarningsHeight = deceptiveUrlWarningText
-      ? measuredSecurityWarningsHeight + SECURITY_WARNING_BOTTOM_MARGIN
-      : 0;
-
-    let extraInfoLines = 0;
-    if (confirmationDetails.type === 'sandbox_expansion') {
-      const { additionalPermissions } = confirmationDetails;
-      if (additionalPermissions?.network) extraInfoLines++;
-      extraInfoLines += additionalPermissions?.fileSystem?.read?.length || 0;
-      extraInfoLines += additionalPermissions?.fileSystem?.write?.length || 0;
-    } else if (confirmationDetails.type === 'exec') {
-      const executionProps = confirmationDetails;
-      const commandsToDisplay =
-        executionProps.commands && executionProps.commands.length > 0
-          ? executionProps.commands
-          : [executionProps.command];
-      const containsRedirection = commandsToDisplay.some((cmd) =>
-        hasRedirection(cmd),
-      );
-      const isAutoEdit =
-        config.getApprovalMode() === ApprovalMode.YOLO ||
-        config.getApprovalMode() === ApprovalMode.AUTO_EDIT;
-      if (containsRedirection && !isAutoEdit) {
-        extraInfoLines = 1; // Warning line
-      }
+    // 1. Security warnings (if any)
+    if (deceptiveUrlWarningText) {
+      // WarningMessage adds marginTop: 1, and the wrapping Box adds marginBottom: 1
+      surroundingHeight += measuredSecurityWarningsHeight + 2;
     }
 
-    const surroundingElementsHeight =
-      PADDING_OUTER_Y +
-      HEIGHT_QUESTION +
-      MARGIN_QUESTION_TOP +
-      MARGIN_QUESTION_BOTTOM +
-      SHOW_MORE_LINES_HEIGHT +
-      optionsCount +
-      securityWarningsHeight +
-      extraInfoLines;
+    // 2. Question (if any)
+    const willHaveQuestion = confirmationDetails.type !== 'sandbox_expansion';
+    if (willHaveQuestion) {
+      const questionLines = confirmationDetails.type === 'exec' ? 2 : 1;
+      surroundingHeight += questionLines + 1; // +1 for marginBottom
+    }
 
-    return Math.max(availableTerminalHeight - surroundingElementsHeight, 2);
+    // 3. Selection options
+    const optionsCount = getOptions().length;
+    surroundingHeight += optionsCount;
+
+    // The body takes the remaining space.
+    // We ensure at least room for borders and 1 line of content.
+    return Math.max(availableTerminalHeight - surroundingHeight, 4);
   }, [
     availableTerminalHeight,
     handlesOwnUI,
     getOptions,
     measuredSecurityWarningsHeight,
     deceptiveUrlWarningText,
-    confirmationDetails,
-    config,
+    confirmationDetails.type,
   ]);
 
   const { question, bodyContent, options, securityWarnings, initialIndex } =
@@ -656,7 +650,9 @@ export const ToolConfirmationMessage: React.FC<
                       : undefined
                   }
                   terminalWidth={Math.max(terminalWidth, 1) - 4}
-                  onTruncationChange={setIsBodyTruncated}
+                  onTruncationChange={(truncated) =>
+                    handleTruncationChange('diff', truncated)
+                  }
                 />
               </Box>
             </>
@@ -697,7 +693,8 @@ export const ToolConfirmationMessage: React.FC<
                   bodyHeight !== undefined
                     ? Math.max(bodyHeight - 2, 2)
                     : undefined,
-                onTruncationChange: setIsBodyTruncated,
+                onTruncationChange: (truncated) =>
+                  handleTruncationChange('sandbox_expansion', truncated),
               })}
             </Box>
             <Box flexDirection="column">
@@ -809,7 +806,9 @@ export const ToolConfirmationMessage: React.FC<
                     : undefined
                 }
                 maxWidth={Math.max(terminalWidth, 1) - 4}
-                onTruncationChange={setIsBodyTruncated}
+                onTruncationChange={(truncated) =>
+                  handleTruncationChange('exec', truncated)
+                }
               >
                 <Box flexDirection="column">
                   {commandsToDisplay.map((cmd, idx) => (
@@ -909,7 +908,8 @@ export const ToolConfirmationMessage: React.FC<
                           bodyHeight !== undefined
                             ? Math.max(bodyHeight - 2, 2)
                             : undefined,
-                        onTruncationChange: setIsBodyTruncated,
+                        onTruncationChange: (truncated) =>
+                          handleTruncationChange('mcp', truncated),
                       })}
                     </Box>
                   </>
@@ -943,6 +943,7 @@ export const ToolConfirmationMessage: React.FC<
       activeTheme,
       config,
       toolName,
+      handleTruncationChange,
     ]);
 
   const bodyOverflowDirection: 'top' | 'bottom' =
@@ -1012,6 +1013,7 @@ export const ToolConfirmationMessage: React.FC<
           <Box
             flexShrink={1}
             overflow="hidden"
+            height={availableBodyContentHeight()}
             marginBottom={!question && !securityWarnings ? 1 : 0}
           >
             <MaxSizedBox
