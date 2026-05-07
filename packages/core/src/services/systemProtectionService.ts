@@ -67,6 +67,14 @@ export class SystemProtectionService {
             ),
             always: false,
           },
+          {
+            path: path.join(
+              process.env['SystemDrive'] || 'C:',
+              'Users',
+              'Default',
+            ),
+            always: true,
+          },
         ]
       : []),
   ].map((item) => ({
@@ -150,6 +158,54 @@ export class SystemProtectionService {
     return null;
   }
 
+  /**
+   * Checks if a path belongs to a known system-protected area.
+   * @param absolutePath The absolute path to check.
+   * @returns true if the path is in a protected area, false otherwise.
+   */
+  static isSystemPath(absolutePath: string): boolean {
+    const normalizedTarget = this.normalize(absolutePath);
+
+    for (const forbidden of this.ALL_FORBIDDEN) {
+      const normalizedForbidden = this.normalize(forbidden.path);
+
+      if (
+        normalizedTarget === normalizedForbidden ||
+        normalizedTarget.startsWith(normalizedForbidden + '/')
+      ) {
+        return true;
+      }
+    }
+
+    // Double check real path
+    try {
+      if (path.isAbsolute(absolutePath)) {
+        let realPath = this.REAL_PATH_CACHE.get(absolutePath);
+        if (!realPath) {
+          realPath = this.normalize(resolveToRealPath(absolutePath));
+          this.REAL_PATH_CACHE.set(absolutePath, realPath);
+        }
+
+        if (realPath !== normalizedTarget) {
+          for (const forbidden of this.ALL_FORBIDDEN) {
+            const normalizedForbidden = this.normalize(forbidden.path);
+
+            if (
+              realPath === normalizedForbidden ||
+              realPath.startsWith(normalizedForbidden + '/')
+            ) {
+              return true;
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore resolution errors
+    }
+
+    return false;
+  }
+
   private static normalize(p: string): string {
     const normalized = p.replace(/\\/g, '/');
     return IS_CASE_INSENSITIVE ? normalized.toLowerCase() : normalized;
@@ -192,7 +248,8 @@ export class SystemProtectionService {
       for (const detail of parsed.details) {
         // Check for redirection
         if (REDIRECTION_NAMES.has(detail.name)) {
-          const target = this.extractRedirectionTarget(detail.text);
+          const target =
+            detail.target || this.extractRedirectionTarget(detail.text);
           if (target) {
             const unquotedTarget = this.unquote(target);
             const resolvedTarget = path.resolve(cwd, unquotedTarget);
@@ -256,7 +313,10 @@ export class SystemProtectionService {
     cwd: string,
   ): string | null {
     // Check for redirection (e.g. > /etc/passwd)
-    const redirectionMatches = command.match(/[>]{1,2}\s*([^\s;&|()]+)/g);
+    // Improved regex to handle quoted redirection targets
+    const redirectionMatches = command.match(
+      /[>]{1,2}\s*(?:"[^"]*"|'[^']*'|[^\s;&|()]+)/g,
+    );
     if (redirectionMatches) {
       for (const match of redirectionMatches) {
         const target = match.replace(/[>]{1,2}\s*/, '').trim();
@@ -273,7 +333,9 @@ export class SystemProtectionService {
 
     let roots = getCommandRoots(command);
     if (roots.length === 0) {
-      const firstWord = command.split(/\s+/)[0];
+      // Use a quote-aware match instead of simple split
+      const parts = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+      const firstWord = parts[0];
       if (firstWord) {
         roots = [this.unquote(firstWord)];
       }

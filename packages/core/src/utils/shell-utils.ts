@@ -175,11 +175,18 @@ export async function initializeShellParsers(): Promise<void> {
   await treeSitterInitialization;
 }
 
+export interface RedirectionDetail {
+  operator: string;
+  target: string;
+}
+
 export interface ParsedCommandDetail {
   name: string;
   text: string;
   startIndex: number;
   args?: string[];
+  redirections?: RedirectionDetail[];
+  target?: string;
 }
 
 interface CommandParseResult {
@@ -377,6 +384,21 @@ function extractNameFromNode(node: Node): string | null {
   }
 }
 
+function extractRedirectionTarget(node: Node): string | null {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i);
+    if (!child) continue;
+    if (
+      child.type !== 'file_descriptor' &&
+      !child.text.includes('<') &&
+      !child.text.includes('>')
+    ) {
+      return child.text;
+    }
+  }
+  return null;
+}
+
 function collectCommandDetails(
   root: Node,
   source: string,
@@ -395,6 +417,17 @@ function collectCommandDetails(
         startIndex: current.startIndex,
       };
 
+      if (
+        current.type === 'file_redirect' ||
+        current.type === 'heredoc_redirect' ||
+        current.type === 'herestring_redirect'
+      ) {
+        const target = extractRedirectionTarget(current);
+        if (target) {
+          detail.target = target;
+        }
+      }
+
       if (current.type === 'command') {
         const args: string[] = [];
         const nameNode = current.childForFieldName('name');
@@ -409,7 +442,6 @@ function collectCommandDetails(
             child.type !== 'herestring_redirect'
           ) {
             // Include most nodes as arguments if they are not redirections or the command name
-            // Common types: word, string, raw_string, expansion, command_substitution, etc.
             if (
               [
                 'word',

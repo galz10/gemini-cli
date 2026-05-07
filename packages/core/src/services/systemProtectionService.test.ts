@@ -117,6 +117,22 @@ describe('SystemProtectionService', () => {
           cwd,
         ),
       ).not.toBeNull();
+
+      // Test quoted redirection targets (robust parsing)
+      expect(
+        await SystemProtectionService.validateShellCommand(
+          'echo "foo" > "/etc/passwd"',
+          cwd,
+        ),
+      ).not.toBeNull();
+
+      // Test redirection with descriptors
+      expect(
+        await SystemProtectionService.validateShellCommand(
+          'echo "error" 2> /etc/shadow',
+          cwd,
+        ),
+      ).not.toBeNull();
     });
 
     it('should block high-risk commands targeting protected paths', async () => {
@@ -174,6 +190,27 @@ describe('SystemProtectionService', () => {
           cwd,
         ),
       ).toBeNull();
+    });
+  });
+
+  describe('isSystemPath', () => {
+    it('should identify system paths', () => {
+      if (process.platform !== 'win32') {
+        expect(SystemProtectionService.isSystemPath('/usr/bin/node')).toBe(
+          true,
+        );
+        expect(SystemProtectionService.isSystemPath('/etc/passwd')).toBe(true);
+        expect(SystemProtectionService.isSystemPath('/work/project')).toBe(
+          false,
+        );
+      } else {
+        expect(
+          SystemProtectionService.isSystemPath('C:\\Windows\\System32'),
+        ).toBe(true);
+        expect(SystemProtectionService.isSystemPath('C:\\Users\\Public')).toBe(
+          true,
+        );
+      }
     });
   });
 });

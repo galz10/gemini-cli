@@ -3132,6 +3132,15 @@ export class Config implements McpContext, AgentLoopContext {
       return systemError;
     }
 
+    // Allow read access to non-forbidden system paths (e.g. /usr/bin, /Library)
+    // even if they are outside the primary workspace.
+    if (
+      checkType === 'read' &&
+      SystemProtectionService.isSystemPath(absolutePath)
+    ) {
+      return null;
+    }
+
     // For read operations, check read-only paths first
     if (checkType === 'read') {
       if (this.getWorkspaceContext().isPathReadable(absolutePath)) {

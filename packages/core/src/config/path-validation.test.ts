@@ -7,7 +7,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Config } from './config.js';
 import * as path from 'node:path';
-import * as os from 'node:os';
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
@@ -30,10 +29,28 @@ vi.mock('../utils/paths.js', async (importOriginal) => {
   };
 });
 
+vi.mock('./storage.js', () => ({
+  Storage: class {
+    getProjectTempDir() {
+      return '/tmp/gemini-test';
+    }
+    getProjectIdentifier() {
+      return 'test-project';
+    }
+    setCustomPlansDir() {}
+    static getGlobalGeminiDir() {
+      return '/mock/global/gemini';
+    }
+    static getGlobalTempDir() {
+      return '/tmp/gemini-global';
+    }
+  },
+}));
+
 describe('Config Path Validation', () => {
   let config: Config;
   const targetDir = '/mock/workspace';
-  const globalGeminiDir = path.join(os.homedir(), '.gemini');
+  const globalGeminiDir = '/mock/global/gemini';
 
   beforeEach(() => {
     config = new Config({
@@ -73,5 +90,18 @@ describe('Config Path Validation', () => {
     const workspacePath = path.join(targetDir, 'src/index.ts');
     expect(config.isPathAllowed(workspacePath)).toBe(true);
     expect(config.validatePathAccess(workspacePath, 'read')).toBeNull();
+  });
+
+  it('should allow read access to non-forbidden system paths outside workspace', () => {
+    // These paths are allowed by SystemProtectionService for read (always: false)
+    // and Config should now allow them even if outside workspace.
+    if (process.platform !== 'win32') {
+      expect(config.validatePathAccess('/usr/bin/node', 'read')).toBeNull();
+      expect(config.validatePathAccess('/Library', 'read')).toBeNull();
+    } else {
+      expect(
+        config.validatePathAccess('C:\\Windows\\System32\\cmd.exe', 'read'),
+      ).toBeNull();
+    }
   });
 });
