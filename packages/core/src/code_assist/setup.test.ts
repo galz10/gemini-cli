@@ -410,7 +410,11 @@ describe('setupUser', () => {
       });
 
       mockGetOperation
-        .mockRejectedValueOnce(new Error('Internal Server Error'))
+        .mockRejectedValueOnce({
+          response: {
+            status: 500,
+          },
+        })
         .mockResolvedValueOnce({
           name: operationName,
           done: true,
