@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generatePolicy } from './policy-generator.js';
+import { CONTENT_GENERATOR_NOT_INITIALIZED } from '../../core/errorMessages.js';
 import { SafetyCheckDecision } from '../protocol.js';
 import type { Config } from '../../config/config.js';
 import type { ContentGenerator } from '../../core/contentGenerator.js';
@@ -89,7 +90,7 @@ describe('policy_generator', () => {
     );
 
     expect(result.policy).toEqual({});
-    expect(result.error).toBe('Content generator not initialized');
+    expect(result.error).toBe(CONTENT_GENERATOR_NOT_INITIALIZED);
   });
   it('should prevent template injection (double interpolation)', async () => {
     mockContentGenerator.generateContent = vi.fn().mockResolvedValue({});

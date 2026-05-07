@@ -71,6 +71,7 @@ Trusted Tools (Context):
 {{trusted_content}}
 `;
 
+import { CONTENT_GENERATOR_NOT_INITIALIZED } from '../../core/errorMessages.js';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
@@ -106,7 +107,7 @@ export async function generatePolicy(
   const contentGenerator = config.getContentGenerator();
 
   if (!contentGenerator) {
-    return { policy: {}, error: 'Content generator not initialized' };
+    return { policy: {}, error: CONTENT_GENERATOR_NOT_INITIALIZED };
   }
 
   try {

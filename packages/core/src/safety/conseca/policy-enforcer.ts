@@ -39,6 +39,7 @@ Evaluate the tool call against the policy.
 Output strictly JSON.
 `;
 
+import { CONTENT_GENERATOR_NOT_INITIALIZED } from '../../core/errorMessages.js';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 
@@ -61,8 +62,8 @@ export async function enforcePolicy(
   if (!contentGenerator) {
     return {
       decision: SafetyCheckDecision.ALLOW,
-      reason: 'Content generator not initialized',
-      error: 'Content generator not initialized',
+      reason: CONTENT_GENERATOR_NOT_INITIALIZED,
+      error: CONTENT_GENERATOR_NOT_INITIALIZED,
     };
   }
 

@@ -396,7 +396,7 @@ describe('setupUser', () => {
       mockLoad.mockResolvedValue(null);
 
       await expect(setupUser({} as OAuth2Client, mockConfig)).rejects.toThrow(
-        'LoadCodeAssist returned empty response',
+        /LoadCodeAssist returned empty response.*Troubleshooting steps/s,
       );
     });
   });
